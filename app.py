@@ -3,50 +3,109 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
+import textwrap as tw
 
 # Page Config
 st.set_page_config(page_title="Proteomics v1.0", layout="wide")
 
 # --- DATA LOADING (CACHED) ---
 @st.cache_data
-def load_placeholder_data():
-    # Simulate 10,000 proteins across 18 samples
-    proteins = [f"PROT_{i:05d}" for i in range(10000)]
-    samples = [f"Line{l}_Rep{r}" for l in range(1,7) for r in range(1,4)]
-    data = np.random.lognormal(mean=10, sigma=1, size=(10000, 18))
-    df = pd.DataFrame(data, columns=samples)
-    df.insert(0, "Protein_ID", proteins)
-    return df
+def load_data(data_path, samp_meta_path, entry_meta_path):
+    # load CSVs
+    data = pd.read_csv(data_path, index_col=0)
+    samp_meta = pd.read_csv(samp_meta_path, index_col=0)
+    entry_meta = pd.read_csv(entry_meta_path, index_col=0)
+    
+    ## formatting
+    # transposes the table so that samples are rows
+    data = data.T
 
-st.title("🔬 Proteomics Data Explorer v1.0")
-st.write("Securely logged in. Data is restricted to authorized viewers.")
+    # merge with relevant sample metadata columns
+    data = data.merge(samp_meta[[
+        'Parental.line', 'CRISPR.edits', 'Samples']],
+        left_index = True, right_index = True)
+
+    return data, samp_meta, entry_meta
+    
+def lookup_by_protid(protein_id: str, protein_metadata: pd.DataFrame,
+                     name_col: str):
+    '''
+    Uses a protein ID to look up the rows of the `protein_metadata` table
+    where that ID matches the index. Returns the contents of `name_col`
+    for that row.
+    For proteomics, this is the uniprot ID.
+    Args:
+    - protein_id (str): The protein identifier to look up in the index
+    - protein_metadata (DataFrame): the protein metadata dataframe
+    - name_col (str): Column name of the identifier/descriptor to look up
+    Returns:
+    - str
+    '''
+
+    # returns np.nan if the protein_id is not found.
+    if protein_id not in protein_metadata.index:
+        return np.nan
+    # otherwise returns the contents of name_col for that row
+    # assumes only one row will be returned (index is unique)
+    return protein_metadata.loc[protein_id, name_col]
+    
+st.title("🔬 Proteomics Data Explorer v0.1")
 
 # Load Data
 with st.spinner("Loading 10,000 proteins..."):
-    df = load_placeholder_data()
+    intensity, samp_meta, entry_meta = load_data(
+        'data/proteomics/astrocytes_prot_data.csv',
+        'data/proteomics/astrocytes_prot_samp_meta.csv',
+        'data/proteomics/astrocytes_prot_meta.csv')
 
 # --- SIDEBAR FILTERS ---
+# Exclude metadata columns so they don't show up in the protein dropdown
+meta_cols = ['Parental.line', 'CRISPR.edits', 'Samples']
+protein_list = [col for col in intensity.columns if col not in meta_cols]
+
 st.sidebar.header("Controls")
-search_query = st.sidebar.selectbox("Select or Search Protein", df["Protein_ID"])
+prot_id = st.sidebar.selectbox("Select or Search Protein", protein_list)
 
 # --- VISUALIZATION ---
 col1, col2 = st.columns([1, 2])
 
 with col1:
-    st.subheader(f"Raw Values: {search_query}")
-    protein_data = df[df["Protein_ID"] == search_query].iloc[:, 1:].T
-    protein_data.columns = ["Abundance"]
+    st.subheader(f"Raw Values: {prot_id}")
+    protein_data = intensity[[prot_id]].copy()
+    protein_data.columns = ["Normalized Abundance"]
     st.dataframe(protein_data)
 
 with col2:
     st.subheader("Expression Boxplot")
-    # Prepare data for Seaborn
-    plot_df = pd.DataFrame({
-        "Abundance": protein_data["Abundance"],
-        "Line": [s.split('_')[0] for s in protein_data.index]
-    })
-    
     fig, ax = plt.subplots(figsize=(8, 5))
-    sns.boxplot(data=plot_df, x="Line", y="Abundance", ax=ax, palette="light:b")
-    sns.stripplot(data=plot_df, x="Line", y="Abundance", color="black", alpha=0.5)
+    # boxplots
+    ax = sns.boxplot(
+        data = intensity,
+        x = 'Parental.line',
+        y = prot_id,
+        hue = 'CRISPR.edits', ax=ax)
+
+    # plot the stripplot
+    ax = sns.stripplot(
+        data = intensity,
+        x = 'Parental.line',
+        y = prot_id,
+        hue = 'CRISPR.edits',
+        ax=ax,
+        dodge = True,
+        color = 'black',
+        legend = False)
+    ax.legend(bbox_to_anchor=(1,1))
+    
+    # adds the title
+    prot_name = lookup_by_protid(prot_id, entry_meta, 'id.mapped')
+    ax.set_title(prot_name)
+    prot_desc = lookup_by_protid(prot_id, entry_meta, 'entry_name')
+    ax.set_title(tw.fill(f'{prot_name}\n{prot_desc}',
+                         width = 32,
+                         replace_whitespace = False,
+                         drop_whitespace=False))
+    ax.set_ylabel('normalized levels')
+    ax.set_xlabel('')
+    
     st.pyplot(fig)
