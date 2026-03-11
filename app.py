@@ -61,10 +61,12 @@ with st.spinner("Loading 10,000 proteins..."):
 # --- SIDEBAR FILTERS ---
 # Exclude metadata columns so they don't show up in the protein dropdown
 meta_cols = ['Parental.line', 'CRISPR.edits', 'Samples']
-protein_list = [col for col in intensity.columns if col not in meta_cols]
+entry_meta['uniprot_id.mapped_concat'] = entry_meta['id.mapped'] + '_' + entry_meta.index
+protein_list = entry_meta['uniprot_id.mapped_concat']
 
 st.sidebar.header("Controls")
-prot_id = st.sidebar.selectbox("Select or Search Protein", protein_list)
+id_name = st.sidebar.selectbox("Select or Search Protein", protein_list)
+prot_id = entry_meta[entry_meta['uniprot_id.mapped_concat'] == id_name].index[0]
 
 # --- VISUALIZATION ---
 col1, col2 = st.columns([1, 2])
@@ -77,7 +79,9 @@ with col1:
 
 with col2:
     st.subheader("Expression Boxplot")
-    fig, ax = plt.subplots(figsize=(8, 5))
+    fig_length = 8
+    fig_height = 5
+    fig, ax = plt.subplots(figsize=(fig_length, fig_height))    
     # boxplots
     ax = sns.boxplot(
         data = intensity,
@@ -95,7 +99,7 @@ with col2:
         dodge = True,
         color = 'black',
         legend = False)
-    ax.legend(bbox_to_anchor=(1,1))
+    ax.legend(bbox_to_anchor=(1,1), loc= 'upper left', fontsize = 25)
     
     # adds the title
     prot_name = lookup_by_protid(prot_id, entry_meta, 'id.mapped')
@@ -104,8 +108,12 @@ with col2:
     ax.set_title(tw.fill(f'{prot_name}\n{prot_desc}',
                          width = 32,
                          replace_whitespace = False,
-                         drop_whitespace=False))
-    ax.set_ylabel('normalized levels')
+                         drop_whitespace=False), fontsize = 25)
+    ax.set_ylabel('normalized levels', fontsize = 25)
     ax.set_xlabel('')
-    
+ 
+    # changes font size of axis ticks
+    ax.tick_params(axis = 'y', direction = 'inout', length = 5, width = 1, labelsize = 15)
+    ax.tick_params(axis = 'x', direction = 'inout', length = 5, width = 1, labelsize = 20)
+
     st.pyplot(fig)
