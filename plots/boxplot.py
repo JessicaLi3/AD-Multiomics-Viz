@@ -51,6 +51,16 @@ def lookup_by_protid(protein_id: str, protein_metadata: pd.DataFrame,
     
 st.title("🔬 Proteomics Data Explorer v0.1")
 
+# --- SIDEBAR FILTERS ---
+# Exclude metadata columns so they don't show up in the protein dropdown
+meta_cols = ['Parental.line', 'CRISPR.edits', 'Samples']
+entry_meta['uniprot_id.mapped_concat'] = entry_meta['id.mapped'] + '_' + entry_meta.index
+protein_list = entry_meta['uniprot_id.mapped_concat']
+
+st.sidebar.header("Controls")
+id_name = st.sidebar.selectbox("Select or Search Protein", protein_list)
+prot_id = entry_meta[entry_meta['uniprot_id.mapped_concat'] == id_name].index[0]
+
 # Load Data
 with st.spinner("Loading 10,000 proteins..."):
     intensity, samp_meta, entry_meta = load_data(
