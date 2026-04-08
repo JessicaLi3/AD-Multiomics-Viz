@@ -5,12 +5,15 @@ import seaborn as sns
 import numpy as np
 import textwrap as tw
 
+max_msg_size = st.get_option("server.maxMessageSize")
+st.write(f"Current Max Message Size: {max_msg_size} MB")
+
 # Page Config
 st.set_page_config(page_title="Proteomics v1.0", layout="wide")
 # add a comment
 # --- DATA LOADING (CACHED) ---
 @st.cache_data
-def load_data(data_path, samp_meta_path, entry_meta_path):
+def load_data(data_path, samp_meta_path, entry_meta_path, sample_col):
     # load CSVs
     data = pd.read_csv(data_path, index_col=0)
     samp_meta = pd.read_csv(samp_meta_path, index_col=0)
@@ -22,7 +25,7 @@ def load_data(data_path, samp_meta_path, entry_meta_path):
 
     # merge with relevant sample metadata columns
     data = data.merge(samp_meta[[
-        'Parental.line', 'CRISPR.edits', 'Samples']],
+        'Parental.line', 'CRISPR.edits', sample_col]],
         left_index = True, right_index = True)
 
     return data, samp_meta, entry_meta
@@ -52,11 +55,18 @@ def lookup_by_protid(protein_id: str, protein_metadata: pd.DataFrame,
 st.title("🔬 Proteomics Data Explorer v0.1")
 
 # Load Data
+st.sidebar.header("Controls")
+cell_type = st.sidebar.selectbox("Select Cell Type", ["astrocytes", "microglia"])
+if cell_type == "astrocytes":
+    sampcol = 'Samples'
+elif cell_type == "microglia":
+    sampcol = 'Sample'
 with st.spinner("Loading 10,000 proteins..."):
     intensity, samp_meta, entry_meta = load_data(
-        'data/proteomics/astrocytes_prot_data.csv',
-        'data/proteomics/astrocytes_prot_samp_meta.csv',
-        'data/proteomics/astrocytes_prot_meta.csv')
+        f'data/proteomics/{cell_type}_prot_data.csv',
+        f'data/proteomics/{cell_type}_prot_samp_meta.csv',
+        f'data/proteomics/{cell_type}_prot_meta.csv', 
+        sample_col = sampcol)
 
 # --- SIDEBAR FILTERS ---
 # Exclude metadata columns so they don't show up in the protein dropdown

@@ -1,0 +1,4 @@
+[server]
+
+enableWebsocketCompression = true
+maxMessageSize = 500

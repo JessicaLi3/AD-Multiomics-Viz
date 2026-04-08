@@ -3,7 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
-import textwrap as tw
+import textwrap as tw 
 
 # Page Config
 st.set_page_config(page_title="Proteomics v1.0", layout="centered")
@@ -13,7 +13,7 @@ pages = {
         st.Page("plots/boxplot.py", title="Expression Boxplot")
     ],
     "Pathway-Level Plots": [
-        st.Page("plots/volcano.py", title="Pathway Volcano Plots")
+        st.Page("plots/volcano.py", title="Pathway Volcano Plots"), st.Page("plots/pathway_boxplot.py", title="Pathway Boxplots")
     ],
 }
 pg = st.navigation(pages, position = "top") 
