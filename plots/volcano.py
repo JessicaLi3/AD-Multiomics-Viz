@@ -11,7 +11,7 @@ sys.path.append('../')
 from ad_viz_utility import *
 
 # Page Config
-st.set_page_config(page_title="Proteomics v1.0", layout="wide")
+st.set_page_config(page_title="Proteomics v1.0", layout="centered")
 
 # # --- SIDEBAR FILTERS --- gene ontology or reactome
 st.sidebar.header("Controls")
@@ -50,12 +50,12 @@ id_list = [p for p in id_list if p in diff.index]
 diff['id.mapped'] = diff.index.map(entry_meta['id.mapped'])
 diff['entry_name'] = diff.index.map(entry_meta['entry_name'])
 diff['log_adjpval'] = diff['adj.P.Val'].apply(lambda x: np.log10(x) * -1) # plot this in volcano
-diff['logFC_logpval'] = diff['logFC']*diff['adj.P.Val'] # rank proteins by this
+diff['logFC_logpval'] = np.abs(diff['logFC']*diff['log_adjpval']) # rank proteins by this
 
 ranked_id_list = (diff.loc[id_list].sort_values(by='logFC_logpval', ascending=False).index.tolist())
 
 # --- VISUALIZATION ---
-fig, ax = plt.subplots(figsize=(5,3))
+fig, ax = plt.subplots(figsize=(9,7))
 
 # plot all the proteins in the experiment
 ax = sns.scatterplot(data = diff, x = 'logFC', y = 'log_adjpval',
@@ -64,9 +64,9 @@ ax = sns.scatterplot(data = diff, x = 'logFC', y = 'log_adjpval',
 # plot all the proteins in the pathway
 ax = sns.scatterplot(data = diff.loc[ranked_id_list], x = 'logFC', y = 'log_adjpval',
                      s = 20, alpha = 1, linewidth = 0, color = 'mediumaquamarine')
-ax.set_title(tw.fill(f'{pathway_name}', width = 50))
-ax.set_xlabel(f'logFC\n({comp_key})')
-ax.set_ylabel(f'log10(adj. pval)')
+ax.set_title(tw.fill(f'{pathway_name}', width = 50), fontsize = 25)
+ax.set_xlabel(f'logFC\n({comp_key})', fontsize = 15)
+ax.set_ylabel(f'log10(adj. pval)', fontsize = 15)
 
 # label the top 20 proteins in the pathway (ranked by logFC_logpval)
 annotations = []
@@ -87,4 +87,3 @@ adjust_text(
     ax = ax);
 
 st.pyplot(fig)
-fig.tight_layout()
