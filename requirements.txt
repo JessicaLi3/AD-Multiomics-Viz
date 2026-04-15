@@ -2,3 +2,4 @@ numpy
 pandas
 matplotlib
 seaborn
+git+https://github.com/Phlya/adjustText.git@v1.3.0
