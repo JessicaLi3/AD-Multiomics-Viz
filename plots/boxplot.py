@@ -4,6 +4,9 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 import textwrap as tw
+import sys
+sys.path.append('../')
+from ad_viz_utility import *
 
 max_msg_size = st.get_option("server.maxMessageSize")
 st.write(f"Current Max Message Size: {max_msg_size} MB")
@@ -11,55 +14,17 @@ st.write(f"Current Max Message Size: {max_msg_size} MB")
 # Page Config
 st.set_page_config(page_title="Proteomics v1.0", layout="wide")
 # add a comment
-# --- DATA LOADING (CACHED) ---
-@st.cache_data
-def load_data(data_path, samp_meta_path, entry_meta_path, sample_col):
-    # load CSVs
-    data = pd.read_csv(data_path, index_col=0)
-    samp_meta = pd.read_csv(samp_meta_path, index_col=0)
-    entry_meta = pd.read_csv(entry_meta_path, index_col=0)
-    
-    ## formatting
-    # transposes the table so that samples are rows
-    data = data.T
 
-    # merge with relevant sample metadata columns
-    data = data.merge(samp_meta[[
-        'Parental.line', 'CRISPR.edits', sample_col]],
-        left_index = True, right_index = True)
-
-    return data, samp_meta, entry_meta
-    
-def lookup_by_protid(protein_id: str, protein_metadata: pd.DataFrame,
-                     name_col: str):
-    '''
-    Uses a protein ID to look up the rows of the `protein_metadata` table
-    where that ID matches the index. Returns the contents of `name_col`
-    for that row.
-    For proteomics, this is the uniprot ID.
-    Args:
-    - protein_id (str): The protein identifier to look up in the index
-    - protein_metadata (DataFrame): the protein metadata dataframe
-    - name_col (str): Column name of the identifier/descriptor to look up
-    Returns:
-    - str
-    '''
-
-    # returns np.nan if the protein_id is not found.
-    if protein_id not in protein_metadata.index:
-        return np.nan
-    # otherwise returns the contents of name_col for that row
-    # assumes only one row will be returned (index is unique)
-    return protein_metadata.loc[protein_id, name_col]
-    
 st.title("🔬 Proteomics Data Explorer v0.1")
 
 # Load Data
 st.sidebar.header("Controls")
-cell_type = st.sidebar.selectbox("Select Cell Type", ["astrocytes", "microglia"])
+cell_type = st.sidebar.selectbox("Select Cell Type", ["astrocytes", "microglia", "pericytes"])
 if cell_type == "astrocytes":
     sampcol = 'Samples'
 elif cell_type == "microglia":
+    sampcol = 'Sample'
+elif cell_type == "pericytes":
     sampcol = 'Sample'
 with st.spinner("Loading 10,000 proteins..."):
     intensity, samp_meta, entry_meta = load_data(
