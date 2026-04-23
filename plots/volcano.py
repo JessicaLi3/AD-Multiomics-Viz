@@ -42,6 +42,7 @@ gsea_df = pd.read_csv(f'data/enrichment/{cell_type}_proteome/{comp_key}_{enrichm
 
 # selecting a pathway 
 pathway_list = gsea_df['Description']
+pathway_list = sorted(pathway_list)
 pathway_name = st.sidebar.selectbox("Select Pathway", pathway_list)
 id_list = pathway_to_uniprot(gene_set, database, pathway_identifier, pathway_name, protein_identifier, entry_meta)
 id_list = [p for p in id_list if p in diff.index]

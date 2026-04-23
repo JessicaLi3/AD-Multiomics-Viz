@@ -13,7 +13,7 @@ pages = {
         st.Page("plots/boxplot.py", title="Expression Boxplot")
     ],
     "Pathway-Level Plots": [
-        st.Page("plots/volcano.py", title="Pathway Volcano Plots"), st.Page("plots/pathway_boxplot.py", title="Pathway Boxplots")
+        st.Page("plots/volcano.py", title="Pathway Volcano Plots"), st.Page("plots/pathway_boxplot.py", title="Pathway Boxplots"), st.Page("plots/scatterplot.py",          title = "Pathway Scatterplots")
     ],
 }
 pg = st.navigation(pages, position = "top") 

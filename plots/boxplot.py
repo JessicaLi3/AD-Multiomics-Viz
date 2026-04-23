@@ -9,7 +9,6 @@ sys.path.append('../')
 from ad_viz_utility import *
 
 max_msg_size = st.get_option("server.maxMessageSize")
-st.write(f"Current Max Message Size: {max_msg_size} MB")
 
 # Page Config
 st.set_page_config(page_title="Proteomics v1.0", layout="wide")
@@ -38,6 +37,7 @@ with st.spinner("Loading 10,000 proteins..."):
 meta_cols = ['Parental.line', 'CRISPR.edits', 'Samples']
 entry_meta['uniprot_id.mapped_concat'] = entry_meta['id.mapped'] + '_' + entry_meta.index
 protein_list = entry_meta['uniprot_id.mapped_concat']
+protein_list = sorted(protein_list)
 
 st.sidebar.header("Controls")
 id_name = st.sidebar.selectbox("Select or Search Protein", protein_list)
