@@ -6,6 +6,8 @@ import streamlit as st
 import re
 from adjustText import adjust_text
 import textwrap as tw
+import plotly.express as px
+import plotly.graph_objects as go
 import sys
 sys.path.append('../')
 from ad_viz_utility import *
@@ -56,7 +58,7 @@ data_sub = intensity.T.loc[id_list]
 df = data_sub.reset_index(names = ['uniprot_id']).melt(id_vars = 'uniprot_id',
                                                        value_name = 'protein_level',
                                                        var_name = 'Sample_Rep')
-df['Sample'] = df['Sample_Rep'].apply(lambda x: samp_meta.loc[x,'Samples'])
+df['Sample'] = df['Sample_Rep'].apply(lambda x: samp_meta.loc[x, sampcol])
 
 # take the mean for every sample type
 mean_df = df.groupby(['Sample', 'uniprot_id'])[['protein_level']].agg(np.mean)
@@ -71,23 +73,102 @@ if comparison == "ABCA7LOF vs APOE3":
 elif comparison == "APOE4 vs APOE3":
         gene_var = "APOE4"
 
-# --- VISUALIZATION ---
-fig, ax = plt.subplots(figsize=(11,9))
+with st.spinner("Loading pathway boxplots..."):
+    
+    pathway_info = enrichment_df[enrichment_df['Description'] == pathway_name].copy()
+    if 'setSize' not in pathway_info.columns:
+        pathway_info['setSize'] = np.nan
+    if 'NES' not in pathway_info.columns:
+        pathway_info['NES'] = np.nan
 
-ax = sns.scatterplot(data = wide, x = 'AG09173_APOE3', y = f'AG09173_{gene_var}',
-                    s = 10, alpha = 0.5, linewidth = 0, label = 'AG09')
-ax = sns.scatterplot(data = wide, x = 'AG10788_APOE3', y = f'AG10788_{gene_var}', s = 10, alpha = 0.5, linewidth = 0,
-                    label = 'AG10')
-ax.legend(bbox_to_anchor = (1,1), fontsize = 15)
+    summary_table = pathway_info[[
+        'Description',
+        'p.adjust',
+        'setSize',
+        'NES']]
+    st.dataframe(summary_table)
+
+# --- VISUALIZATION ---
+fig = px.scatter(
+    wide,
+    x = 'AG09173_APOE3', 
+    y = f'AG09173_{gene_var}'
+)
+
+fig.data[0].name = "AG09"
+fig.data[0].showlegend = True
+
+fig.update_traces(
+    marker=dict(size=5, color="orange", opacity=0.5),
+    customdata=np.stack([
+        wide['AG09173_APOE3'],
+        wide[f'AG09173_{gene_var}']
+    ], axis=-1),
+    hovertemplate=(
+        "Protein level in APOE3 (AG09): %{customdata[0]:.3f}<br>"
+        f"Protein level in {gene_var} (AG09): %{{customdata[1]:.3f}}<extra></extra>"
+    )
+)
+
+fig.add_scatter(
+    x=wide['AG10788_APOE3'],
+    y=wide[f'AG10788_{gene_var}'],
+    mode='markers',
+    marker=dict(size=5, color="blue", opacity=0.5),
+    name="AG10",
+    customdata=np.stack([
+        wide['AG10788_APOE3'],
+        wide[f'AG10788_{gene_var}']
+    ], axis=-1),
+    hovertemplate=(
+        "Protein level in APOE3 (AG10): %{customdata[0]:.3f}<br>"
+        f"Protein level in {gene_var} (AG10): %{{customdata[1]:.3f}}<extra></extra>"
+    )
+)
+
 data_lim = wide.max().max()
 lims = (-1*data_lim-0.2,data_lim+0.2)
-ax.set_xlim(lims)
-ax.set_ylim(lims)
-identity_line = Line2D(lims, lims, color="grey", linestyle="--", alpha=0.75)
-ax.add_line(identity_line)
 
-ax.set_xlabel('Normalized protein level\nin APOE3 sample', fontsize = 15)
-ax.set_ylabel(f'Normalized protein level\nin {gene_var} sample', fontsize = 15)
-ax.set_title(pathway_name, fontsize = 25)
+fig.add_scatter(
+    x=lims,
+    y=lims,
+    mode='lines',
+    line=dict(color='grey', dash='dash'),
+    name='y = x',
+    showlegend=False
+)
 
-st.pyplot(fig)
+fig.update_layout(
+    title=dict(
+        text=pathway_name,
+        font=dict(size=32, color="black")
+    ),
+    xaxis_title=dict(
+        text="Normalized protein level<br>in APOE3 sample",
+        font=dict(size=25, color="black")
+    ),
+    yaxis_title=dict(
+        text=f"Normalized protein level<br>in {gene_var} sample",
+        font=dict(size=25, color="black")
+    ),
+    xaxis=dict(showgrid=False, gridcolor='black', showline=True, zeroline=False),
+    yaxis=dict(showgrid=False, gridcolor='black', showline=True, zeroline=False),
+    height=600,
+    width=700,
+)
+
+fig.update_xaxes(
+    showline=True,
+    linecolor="black",
+    tickcolor="black",
+    tickfont=dict(color="black", size=18),
+    zeroline=False)
+
+fig.update_yaxes(
+    showline=True,
+    linecolor="black",
+    tickcolor="black",
+    tickfont=dict(color="black", size=18),
+    zeroline=False)
+
+st.plotly_chart(fig, use_container_width=True)

@@ -99,3 +99,8 @@ def file_keys(comparison, enrichment, database, cell_type):
         protein_identifier = "UNIPROT"
 
     return comp_key, csv_ending, pathway_identifier, gene_set, protein_identifier
+
+def i_to_row_col(i, cols):
+    row = i // cols + 1 #returns division
+    col = i % cols + 1 #returns remainder
+    return row, col

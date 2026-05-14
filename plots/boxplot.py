@@ -4,7 +4,10 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 import textwrap as tw
+import plotly.express as px
+import plotly.graph_objects as go
 import sys
+import textwrap as tw
 sys.path.append('../')
 from ad_viz_utility import *
 
@@ -54,41 +57,124 @@ with col1:
 
 with col2:
     st.subheader("Expression Boxplot")
-    fig_length = 8
-    fig_height = 5
-    fig, ax = plt.subplots(figsize=(fig_length, fig_height))    
-    # boxplots
-    ax = sns.boxplot(
-        data = intensity,
-        x = 'Parental.line',
-        y = prot_id,
-        hue = 'CRISPR.edits', ax=ax)
+    if prot_id in intensity.index:
+        plot_df = intensity.loc[[prot_id]].T
+    elif prot_id in intensity.columns:
+        plot_df = intensity[[prot_id]]
 
-    # plot the stripplot
-    ax = sns.stripplot(
-        data = intensity,
-        x = 'Parental.line',
-        y = prot_id,
-        hue = 'CRISPR.edits',
-        ax=ax,
-        dodge = True,
-        color = 'black',
-        legend = False)
-    ax.legend(bbox_to_anchor=(1,1), loc= 'upper left', fontsize = 25)
+    plot_df = plot_df.rename(columns={prot_id: "value"})
+
+    plot_df = plot_df.merge(
+        samp_meta[['Parental.line', 'CRISPR.edits']],
+        left_index=True,
+        right_index=True
+    )
+
+    plot_df = plot_df.reset_index().rename(columns={"index": "sample"})
+    medians = plot_df.groupby(["Parental.line", "CRISPR.edits"], observed=True)["value"].median().reset_index()
+ 
+    # --- PLOTLY ---
+    fig = px.box(
+        plot_df,
+        x="Parental.line",
+        y="value",
+        color="CRISPR.edits",
+    )
+    
+    fig.update_traces(
+        opacity=0.3,
+        hoverinfo="skip", # disables hover
+        hovertemplate=None, # disables hover
+        boxpoints=False,
+        selector=dict(type="box")
+    )
+
+    # draw stripplot points on top (disable hover)
+    # use this instead of boxpoints="all" in the boxplot
+    # because it draws the points directly on top of the box
+    strip = px.strip(plot_df, x="Parental.line", y="value", color="CRISPR.edits")
+    strip.update_traces(
+        marker_size=5,
+        hoverinfo="skip", # disables hover
+        hovertemplate=None, # disables hover
+        showlegend=False,
+    )
+
+    # draw an invisible barplot
+    # the invisible bars go all the way to the top of the plot ("y_max")
+    medians["y_max"] = plot_df["value"].max()
+    medians["y_min"] = plot_df["value"].min()
+    medians["y_span"] = medians["y_max"] - medians["y_min"]
+    bar = px.bar(medians, x="Parental.line", y="y_span", base = "y_min", color="CRISPR.edits", custom_data=["value"])
+    bar.update_traces(
+        marker_color = "rgba(0,0,0,0)",
+        marker_line_color = "rgba(0,0,0,0)",
+        marker_line_width = 0,
+        showlegend=False,
+        hovertemplate = "Parental.line: %{x}<br>"
+        "CRISPR.edits: %{fullData.name}<br>"
+        "Median: %{customdata[0]:.2f}"
+        "<extra></extra>"
+    )
     
     # adds the title
     prot_name = lookup_by_protid(prot_id, entry_meta, 'id.mapped')
-    ax.set_title(prot_name)
     prot_desc = lookup_by_protid(prot_id, entry_meta, 'entry_name')
-    ax.set_title(tw.fill(f'{prot_name}\n{prot_desc}',
-                         width = 32,
-                         replace_whitespace = False,
-                         drop_whitespace=False), fontsize = 25)
-    ax.set_ylabel('normalized levels', fontsize = 25)
-    ax.set_xlabel('')
- 
-    # changes font size of axis ticks
-    ax.tick_params(axis = 'y', direction = 'inout', length = 5, width = 1, labelsize = 15)
-    ax.tick_params(axis = 'x', direction = 'inout', length = 5, width = 1, labelsize = 20)
 
-    st.pyplot(fig)
+    # add the stripplot and barplot to the original figure
+    fig.add_traces(strip.data)
+    fig.add_traces(bar.data)
+
+    title_text = "<br>".join(
+        tw.wrap(
+        f"{prot_name}\n{prot_desc}",
+        width=38
+        )
+    )
+
+    fig.update_layout(
+        title=dict(
+            text=title_text,
+            font=dict(size=25, color="black"),
+            x=0.48,
+            xanchor="center",
+        ),
+        margin=dict(t=80),
+        yaxis_title=dict(
+            text="normalized levels",
+            font=dict(size=18, color="black")
+        ),
+        xaxis_title=dict(
+            text="",
+            font=dict(size=18, color="black")
+        ),
+
+        height=500,
+        width=800,
+        hovermode="closest",
+        plot_bgcolor="white",
+        
+        xaxis=dict(
+            showgrid=False,
+            zeroline=False,
+            showline=True,
+            linecolor="black",
+            tickfont=dict(size=16, color="black"),
+            tickcolor="black",
+            ticks="outside"
+        ),
+        yaxis=dict(
+            showgrid=False,
+            zeroline=False,
+            showline=True,
+            linecolor="black",
+            tickfont=dict(size=16, color="black"),
+            tickcolor="black",
+            ticks="outside"
+        ),
+
+        barmode="group",
+        boxmode="group",
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)

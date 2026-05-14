@@ -6,6 +6,8 @@ import streamlit as st
 import re
 from adjustText import adjust_text
 import textwrap as tw
+import plotly.express as px
+import plotly.graph_objects as go
 import sys
 sys.path.append('../')
 from ad_viz_utility import *
@@ -54,37 +56,119 @@ diff['log_adjpval'] = diff['adj.P.Val'].apply(lambda x: np.log10(x) * -1) # plot
 diff['logFC_logpval'] = np.abs(diff['logFC']*diff['log_adjpval']) # rank proteins by this
 
 ranked_id_list = (diff.loc[id_list].sort_values(by='logFC_logpval', ascending=False).index.tolist())
+top20 = ranked_id_list[:20]
+top20_df = diff.loc[top20]
 
-# --- VISUALIZATION ---
-fig, ax = plt.subplots(figsize=(9,7))
+show_labels = st.checkbox("Show top 20 protein labels", value=True)
 
-# plot all the proteins in the experiment
-ax = sns.scatterplot(data = diff, x = 'logFC', y = 'log_adjpval',
-                     s = 20, alpha = 0.4, linewidth = 0, color = 'lightgrey')
+with st.spinner("Loading pathway boxplots..."):
+    
+    pathway_info = gsea_df[gsea_df['Description'] == pathway_name].copy()
+    if 'setSize' not in pathway_info.columns:
+        pathway_info['setSize'] = np.nan
+    if 'NES' not in pathway_info.columns:
+        pathway_info['NES'] = np.nan
 
-# plot all the proteins in the pathway
-ax = sns.scatterplot(data = diff.loc[ranked_id_list], x = 'logFC', y = 'log_adjpval',
-                     s = 20, alpha = 1, linewidth = 0, color = 'mediumaquamarine')
-ax.set_title(tw.fill(f'{pathway_name}', width = 50), fontsize = 25)
-ax.set_xlabel(f'logFC\n({comp_key})', fontsize = 15)
-ax.set_ylabel(f'log10(adj. pval)', fontsize = 15)
+    summary_table = pathway_info[[
+        'Description',
+        'p.adjust',
+        'setSize',
+        'NES']]
+    st.dataframe(summary_table)
 
-# label the top 20 proteins in the pathway (ranked by logFC_logpval)
-annotations = []
-for prot_id in ranked_id_list[0:20]:
-    x = diff.loc[prot_id, 'logFC']
-    y = diff.loc[prot_id, 'log_adjpval']
-    text = diff.loc[prot_id, 'id.mapped']
-    annotations.append(ax.annotate(text, (x,y), fontsize = 12))
+# --- VISUALIZATION --- 
+fig = px.scatter(
+    diff,
+    x='logFC',
+    y='log_adjpval'
+)
 
-# moves the labels around
-adjust_text(
-    annotations,
-    force_text = (0.5,0.5),
-    force_static = (0.01,0.01),
-    max_move = (30,20),
-    force_explode = (0.5,0.5),
-    arrowprops = dict(arrowstyle = '-'),
-    ax = ax);
+fig.update_traces(
+    selector=dict(mode='markers'),
+    marker=dict(
+        size=2,           
+        color="lightgrey",
+        opacity=0.3,
+        line=dict(width=0)
+    )
+)
 
-st.pyplot(fig)
+fig.update_traces(hoverinfo="none", hovertemplate=None)
+
+top_scatter = px.scatter(
+    diff.loc[top20], # subset the dataframe to points of interest
+    x='logFC',
+    y='log_adjpval'
+)
+
+top_scatter.update_traces(
+    selector=dict(mode='markers'),
+    marker=dict(
+        size=4,           
+        color="teal",
+        opacity = 1,
+        line=dict(color="teal", width=1)
+    ),
+    customdata=np.stack([
+        top20_df['id.mapped'],
+        top20_df['entry_name'],
+        top20_df.index,
+    ], axis=-1),
+    hovertemplate=(
+        "Gene Symbol: %{customdata[0]}<br>"
+        "Full name: %{customdata[1]}<br>"
+        "UniProt: %{customdata[2]}<br>"
+        "logFC: %{x:.2f}<br>"
+        "adj p-value: %{y:.2f}<extra></extra>"
+    )
+)
+
+fig.add_traces(top_scatter.data)
+fig.update_layout(template="plotly_white")
+
+if show_labels:
+    for prot_id in top20:
+        fig.add_annotation(
+            x=diff.loc[prot_id, 'logFC'],
+            y=diff.loc[prot_id, 'log_adjpval'],
+            text=diff.loc[prot_id, 'id.mapped'],
+            showarrow=False,
+            xshift=10,
+            yshift=10,
+            align="left",
+            font=dict(size=13, color="black")
+        )
+    
+fig.update_layout(
+    title=dict(
+        text=pathway_name,
+        font=dict(size=32, color="black")),
+    xaxis_title=dict(
+        text="logFC",
+        font=dict(size=25, color="black")),
+    yaxis_title=dict(
+        text="log10(adj. pval)",
+        font=dict(size=25, color="black")),
+    plot_bgcolor='white',
+    xaxis=dict(showgrid=False, gridcolor='black', showline=True, zeroline=False),
+    yaxis=dict(showgrid=False, gridcolor='black', showline=True, zeroline=False),
+    height=600,
+    width=700,
+    showlegend=False
+)
+
+fig.update_xaxes(
+    showline=True,
+    linecolor="black",
+    tickcolor="black",
+    tickfont=dict(color="black", size=18),
+    zeroline=False)
+
+fig.update_yaxes(
+    showline=True,
+    linecolor="black",
+    tickcolor="black",
+    tickfont=dict(color="black", size=18),
+    zeroline=False)
+
+st.plotly_chart(fig, use_container_width=True)

@@ -1,6 +1,9 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
+from plotly.subplots import make_subplots
+import plotly.express as px
+import plotly.graph_objects as go
 import seaborn as sns
 import numpy as np
 import textwrap as tw
@@ -8,6 +11,7 @@ import tarfile
 import pdb
 import math
 import sys
+import textwrap as tw
 sys.path.append('../')
 from ad_viz_utility import *
 
@@ -82,52 +86,130 @@ with st.spinner("Loading pathway boxplots..."):
         'setSize',
         'NES']]
     st.dataframe(summary_table)
+
+subplot_titles = [
+    "<br>".join(
+        tw.wrap(
+            f"{lookup_by_protid(p, entry_meta, 'id.mapped')} "
+            f"({lookup_by_protid(p, entry_meta, 'id.description')})<br>"
+            f"{lookup_by_protid(p, entry_meta, 'entry_name')}",
+            width=45
+        )
+    )
+    for p in current_proteins
+]
+
+# --- PLOTS ---
+fig = make_subplots(
+    rows=3,
+    cols=3,
+    subplot_titles=subplot_titles
+)
+
+for i, prot_id in enumerate(valid_proteins):
+# boxplots
+    plot_df = intensity[[prot_id]].copy()
+    plot_df.columns = ["value"]
+    plot_df = plot_df.merge(samp_meta[['Parental.line', 'CRISPR.edits', sampcol]], left_index = True, right_index = True)
+    row, col = i_to_row_col(i, 3)
     
-    # --- PLOTS ---
-    fig, axs = plt.subplots(3,3, figsize = (24,18), gridspec_kw = {'hspace':0.7,'wspace':0.4})
-    axs = axs.flatten()
+    subfig = px.box(
+        plot_df,
+        x="Parental.line",
+        y="value",
+        color="CRISPR.edits",
+    )
+        
+    subfig.update_traces(
+        opacity=0.3,
+        hoverinfo="skip", # disables hover
+        hovertemplate=None, # disables hover
+        boxpoints=False,
+        selector=dict(type="box")
+    )
 
-    for i, prot_id in enumerate(valid_proteins):
-    # boxplots
-        df_plot = intensity[[prot_id]].copy()
-        df_plot = df_plot.merge(samp_meta[['Parental.line', 'CRISPR.edits', sampcol]], left_index = True, right_index = True)
-        ax = axs[i]
-        ax = sns.boxplot(
-            data = df_plot,
-            x = 'Parental.line',
-            y = prot_id,
-            hue = 'CRISPR.edits', ax=ax)
+    # draw stripplot points on top (disable hover)
+    # use this instead of boxpoints="all" in the boxplot
+    # because it draws the points directly on top of the box
+    strip = px.strip(plot_df, x="Parental.line", y="value", color="CRISPR.edits")
+    strip.update_traces(
+        marker_size=5,
+        hoverinfo="skip", # disables hover
+        hovertemplate=None, # disables hover
+        showlegend=False,
+    )
+
+    # draw an invisible barplot
+    # the invisible bars go all the way to the top of the plot ("y_max")
+    medians = plot_df.groupby(["Parental.line", "CRISPR.edits"],observed=True)["value"].median().reset_index()
+    medians["y_max"] = plot_df["value"].max()
+    medians["y_min"] = plot_df["value"].min()
+    medians["y_span"] = medians["y_max"] - medians["y_min"]
+    bar = px.bar(medians, x="Parental.line", y="y_span", base = "y_min", color="CRISPR.edits", custom_data=["value"])
+    bar.update_traces(
+        marker_color = "rgba(0,0,0,0)",
+        marker_line_color = "rgba(0,0,0,0)",
+        marker_line_width = 0,
+        showlegend=False,
+        hovertemplate = "Parental.line: %{x}<br>"
+        "CRISPR.edits: %{fullData.name}<br>"
+        "Median: %{customdata[0]:.2f}"
+        "<extra></extra>"
+    )
     
-    # plot the stripplot
-        ax = sns.stripplot(
-            data = df_plot,
-            x = 'Parental.line',
-            y = prot_id,
-            hue = 'CRISPR.edits',
-            ax=ax,
-            dodge = True,
-            color = 'black',
-            legend = False)
+    # adds the title
+    prot_name = lookup_by_protid(prot_id, entry_meta, 'id.mapped')
+    prot_desc = lookup_by_protid(prot_id, entry_meta, 'entry_name')
+    prot_id = lookup_by_protid(prot_id, entry_meta, 'id.description')
 
-        prot_name = lookup_by_protid(prot_id, entry_meta, 'id.mapped')
-        prot_desc = lookup_by_protid(prot_id, entry_meta, 'entry_name')
-        prot_id = lookup_by_protid(prot_id, entry_meta, 'id.description')
-        ax.set_title(tw.fill(f'{prot_name} ({prot_id})\n{prot_desc}',
-                         width = 38,
-                         replace_whitespace = False,
-                         drop_whitespace=False), fontsize = 16)
+    # add the stripplot and barplot to the original figure
+    subfig.add_traces(strip.data)
+    subfig.add_traces(bar.data)
+    fig.add_traces(subfig.data, rows=row, cols=col)
 
-        ax.set_ylabel("Normalized levels", fontsize=13)
-        ax.set_xlabel("", fontsize=13)
-        ax.tick_params(axis = 'y', direction = 'inout', length = 8, width = 3, labelsize = 13)
-        ax.tick_params(axis = 'x', direction = 'inout', length = 8, width = 3, labelsize = 13)
-        ax.legend(bbox_to_anchor=(1,1), loc= 'upper left', fontsize=16)
-        if i!=2:
-            ax.legend().remove()
-        for j in range(len(current_proteins), len(axs)):
-            axs[j].axis('off')
+    fig.update_yaxes(
+        title_text="Normalized levels",
+        showgrid=False,
+        tickfont=dict(size=11),
+        zeroline=False,
+        showline=True,
+        linecolor="black",
+        linewidth=1,
+    )
 
-    st.pyplot(fig)
+    fig.update_xaxes(
+        title_text="",
+        tickfont=dict(size=11),
+        showgrid=False,
+        zeroline = False,
+        showline = True,
+        linecolor="black",
+        linewidth=1,
+    )
+
+    names = set()
+    for trace in fig.data:
+        # If the legend name is already in the set, hide it
+        if trace.name in names:
+            trace.showlegend = False
+        # Otherwise, show it and add it to the set
+        else:
+            trace.showlegend = True
+            names.add(trace.name)
+    
+    fig.update_layout(
+        height=900,
+        width=1200,
+        boxmode = 'group'
+    )
+
+    fig.update_xaxes(title_font=dict(color="black"))
+    fig.update_yaxes(title_font=dict(size=16, color="black"))
+    fig.update_xaxes(tickfont=dict(size=16, color="black"))
+    fig.update_yaxes(tickfont=dict(size=16, color="black"))
+    fig.update_annotations(font=dict(size=16, color="black"))
+
+st.plotly_chart(fig, use_container_width=True)
 
 # Page controls
 col1, col2, col3 = st.columns([1,2,1])
