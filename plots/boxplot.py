@@ -128,7 +128,7 @@ with col2:
     title_text = (
         "<br>".join(tw.wrap(prot_name, width=38))
         + "<br>" +
-        "<br>".join(tw.wrap(prot_desc, width=38))
+        "<br>".join(tw.wrap(prot_desc, width=47))
     )
 
     fig.update_layout(
@@ -137,8 +137,10 @@ with col2:
             font=dict(size=25, color="black"),
             x=0.48,
             xanchor="center",
+            y=0.96,
+            yanchor="bottom"
         ),
-        margin=dict(t=80),
+        margin=dict(t=130),
         yaxis_title=dict(
             text="normalized levels",
             font=dict(size=18, color="black")
