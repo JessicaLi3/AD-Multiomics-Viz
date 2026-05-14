@@ -125,11 +125,10 @@ with col2:
     fig.add_traces(strip.data)
     fig.add_traces(bar.data)
 
-    title_text = "<br>".join(
-        tw.wrap(
-        f"{prot_name}\n{prot_desc}",
-        width=38
-        )
+    title_text = (
+        "<br>".join(tw.wrap(prot_name, width=38))
+        + "<br>" +
+        "<br>".join(tw.wrap(prot_desc, width=38))
     )
 
     fig.update_layout(
