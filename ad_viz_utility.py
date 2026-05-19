@@ -104,3 +104,10 @@ def i_to_row_col(i, cols):
     row = i // cols + 1 #returns division
     col = i % cols + 1 #returns remainder
     return row, col
+
+def get_font_size(title_text):
+    if len(title_text[0]) > 65: 
+        font_size = 19 
+    else: 
+        font_size = 25
+    return font_size

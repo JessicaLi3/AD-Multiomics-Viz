@@ -8,6 +8,7 @@ from adjustText import adjust_text
 import textwrap as tw
 import plotly.express as px
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 import sys
 sys.path.append('../')
 from ad_viz_utility import *
@@ -73,6 +74,12 @@ if comparison == "ABCA7LOF vs APOE3":
 elif comparison == "APOE4 vs APOE3":
         gene_var = "APOE4"
 
+title_text = ["<br>".join(
+    tw.wrap(pathway_name, width=40)
+)]
+
+font_size = get_font_size(title_text)
+
 with st.spinner("Loading pathway boxplots..."):
     
     pathway_info = enrichment_df[enrichment_df['Description'] == pathway_name].copy()
@@ -89,14 +96,22 @@ with st.spinner("Loading pathway boxplots..."):
     st.dataframe(summary_table)
 
 # --- VISUALIZATION ---
-fig = px.scatter(
-    wide,
-    x = 'AG09173_APOE3', 
-    y = f'AG09173_{gene_var}'
+fig = make_subplots(
+    rows=1,
+    cols=1,
+    subplot_titles=title_text
 )
 
-fig.data[0].name = "AG09"
-fig.data[0].showlegend = True
+base = px.scatter(
+    wide,
+    x='AG09173_APOE3',
+    y=f'AG09173_{gene_var}'
+)
+
+base.data[0].name = "AG09"
+base.data[0].showlegend = True
+
+fig.add_traces(base.data)
 
 fig.update_traces(
     marker=dict(size=5, color="orange", opacity=0.5),
@@ -139,36 +154,40 @@ fig.add_scatter(
 )
 
 fig.update_layout(
-    title=dict(
-        text=pathway_name,
-        font=dict(size=32, color="black")
-    ),
     xaxis_title=dict(
         text="Normalized protein level<br>in APOE3 sample",
-        font=dict(size=25, color="black")
+        font=dict(size=27, color="black")
     ),
     yaxis_title=dict(
         text=f"Normalized protein level<br>in {gene_var} sample",
-        font=dict(size=25, color="black")
+        font=dict(size=27, color="black")
     ),
     xaxis=dict(showgrid=False, gridcolor='black', showline=True, zeroline=False),
     yaxis=dict(showgrid=False, gridcolor='black', showline=True, zeroline=False),
+    legend=dict(
+        font=dict(size=21)
+    ),
     height=600,
     width=700,
+)
+
+fig.update_annotations(
+    font=dict(size=font_size, color="black"),
+    align="center"
 )
 
 fig.update_xaxes(
     showline=True,
     linecolor="black",
     tickcolor="black",
-    tickfont=dict(color="black", size=18),
+    tickfont=dict(color="black", size=21),
     zeroline=False)
 
 fig.update_yaxes(
     showline=True,
     linecolor="black",
     tickcolor="black",
-    tickfont=dict(color="black", size=18),
+    tickfont=dict(color="black", size=21),
     zeroline=False)
 
 st.plotly_chart(fig, use_container_width=True)

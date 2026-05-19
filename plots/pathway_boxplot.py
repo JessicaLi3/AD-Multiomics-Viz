@@ -53,6 +53,13 @@ pathway_list = enrichment_df['Description']
 pathway_list = sorted(pathway_list)
 pathway_name = st.sidebar.selectbox("Select or Search Pathways", pathway_list)
 
+if "previous_pathway" not in st.session_state:
+    st.session_state.previous_pathway = pathway_name
+
+if pathway_name != st.session_state.previous_pathway:
+    st.session_state.current_page = 0
+    st.session_state.previous_pathway = pathway_name
+
 # Setting up pages
 id_list = pathway_to_uniprot(gene_set, database, pathway_identifier, pathway_name, protein_identifier, entry_meta)
 id_list = [p for p in id_list if p in entry_meta.index]
@@ -60,7 +67,7 @@ ranked_id_list = (diff.loc[id_list].sort_values(by='logFC_logpval', ascending=Fa
 
 plots_per_page = 9
 
-if 'current_page' not in st.session_state:
+if "current_page" not in st.session_state:
     st.session_state.current_page = 0
 
 total_pages = math.ceil(len(ranked_id_list) / plots_per_page)

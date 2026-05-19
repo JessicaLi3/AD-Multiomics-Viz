@@ -6,6 +6,7 @@ import numpy as np
 import textwrap as tw
 import plotly.express as px
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 import sys
 import textwrap as tw
 sys.path.append('../')
@@ -72,31 +73,59 @@ with col2:
 
     plot_df = plot_df.reset_index().rename(columns={"index": "sample"})
     medians = plot_df.groupby(["Parental.line", "CRISPR.edits"], observed=True)["value"].median().reset_index()
+
+    # adds the title
+    prot_name = lookup_by_protid(prot_id, entry_meta, 'id.mapped')
+    prot_desc = lookup_by_protid(prot_id, entry_meta, 'entry_name')
+    prot_id = lookup_by_protid(prot_id, entry_meta, 'id.description')
+
+    title_text = [
+        "<br>".join(
+            tw.wrap(
+                f"{prot_name} ({prot_id})<br>{prot_desc}",
+                width=60
+            )
+        )
+    ]
+
+    font_size = get_font_size(title_text)
  
     # --- PLOTLY ---
-    fig = px.box(
+    fig = make_subplots(
+        rows=1,
+        cols=1,
+        subplot_titles=title_text,
+        vertical_spacing=1)
+
+    subfig = px.box(
         plot_df,
         x="Parental.line",
         y="value",
         color="CRISPR.edits",
     )
-    
-    fig.update_traces(
-        opacity=0.3,
-        hoverinfo="skip", # disables hover
-        hovertemplate=None, # disables hover
-        boxpoints=False,
-        selector=dict(type="box")
-    )
 
     # draw stripplot points on top (disable hover)
     # use this instead of boxpoints="all" in the boxplot
     # because it draws the points directly on top of the box
-    strip = px.strip(plot_df, x="Parental.line", y="value", color="CRISPR.edits")
+    subfig.update_traces(
+        opacity=0.3,
+        hoverinfo="skip",
+        hovertemplate=None,
+        boxpoints=False,
+        selector=dict(type="box")
+    )
+
+    strip = px.strip(
+        plot_df,
+        x="Parental.line",
+        y="value",
+        color="CRISPR.edits"
+    )
+
     strip.update_traces(
         marker_size=5,
-        hoverinfo="skip", # disables hover
-        hovertemplate=None, # disables hover
+        hoverinfo="skip",
+        hovertemplate=None,
         showlegend=False,
     )
 
@@ -116,66 +145,71 @@ with col2:
         "Median: %{customdata[0]:.2f}"
         "<extra></extra>"
     )
-    
-    # adds the title
-    prot_name = lookup_by_protid(prot_id, entry_meta, 'id.mapped')
-    prot_desc = lookup_by_protid(prot_id, entry_meta, 'entry_name')
 
-    # add the stripplot and barplot to the original figure
-    fig.add_traces(strip.data)
-    fig.add_traces(bar.data)
+    # add the stripplot and barplot to the figure
+    subfig.add_traces(strip.data)
+    subfig.add_traces(bar.data)
+    fig.add_traces(subfig.data, rows=1, cols=1)
 
-    title_text = (
-        "<br>".join(tw.wrap(prot_name, width=38))
-        + "<br>" +
-        "<br>".join(tw.wrap(prot_desc, width=47))
+    fig.update_yaxes(
+        title_text="Normalized levels",
+        title_font=dict(size=18, color="black"),
+        tickfont=dict(size=16, color="black"),
+        showgrid=False,
+        zeroline=False,
+        showline=True,
+        linecolor="black",
+        linewidth=1,
+        ticks="outside",
+        tickcolor="black"
     )
 
-    fig.update_layout(
-        title=dict(
-            text=title_text,
-            font=dict(size=25, color="black"),
-            x=0.48,
-            xanchor="center",
-            y=0.96,
-            yanchor="bottom"
-        ),
-        margin=dict(t=130),
-        yaxis_title=dict(
-            text="normalized levels",
-            font=dict(size=18, color="black")
-        ),
-        xaxis_title=dict(
-            text="",
-            font=dict(size=18, color="black")
-        ),
+    fig.update_xaxes(
+        title_text="",
+        tickfont=dict(size=18, color="black"),
+        showgrid=False,
+        zeroline=False,
+        showline=True,
+        linecolor="black",
+        linewidth=1,
+        ticks="outside",
+        tickcolor="black"
+    )
+    
+    fig.update_annotations(
+        font=dict(size=font_size, color="black"),
+        align="center"
+    )
 
+    fig.update_layout( 
         height=500,
         width=800,
         hovermode="closest",
         plot_bgcolor="white",
-        
-        xaxis=dict(
-            showgrid=False,
-            zeroline=False,
-            showline=True,
-            linecolor="black",
-            tickfont=dict(size=16, color="black"),
-            tickcolor="black",
-            ticks="outside"
-        ),
-        yaxis=dict(
-            showgrid=False,
-            zeroline=False,
-            showline=True,
-            linecolor="black",
-            tickfont=dict(size=16, color="black"),
-            tickcolor="black",
-            ticks="outside"
-        ),
-
-        barmode="group",
-        boxmode="group",
+        boxmode="group"
     )
     
-    st.plotly_chart(fig, use_container_width=True)
+    # fig.update_layout(
+    #     legend=dict(
+    #         x=1,
+    #         y=0.98,
+    #         xanchor="left",
+    #         yanchor="top"
+    #     )
+    # )
+    
+    # fig.update_layout(
+    #     margin=dict(l=80, r=150, t=80, b=80)
+    # )
+
+    config = {
+        'toImageButtonOptions': {
+        'format': 'svg', 
+        'filename': 'newplot',
+        'height': 500,
+        'width': 1100,
+        'scale': 1 # can increase for higher resolution
+      }
+    }
+
+    st.plotly_chart(fig, config=config, use_container_width=True)

@@ -8,6 +8,7 @@ from adjustText import adjust_text
 import textwrap as tw
 import plotly.express as px
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 import sys
 sys.path.append('../')
 from ad_viz_utility import *
@@ -59,6 +60,12 @@ ranked_id_list = (diff.loc[id_list].sort_values(by='logFC_logpval', ascending=Fa
 top20 = ranked_id_list[:20]
 top20_df = diff.loc[top20]
 
+title_text = ["<br>".join(
+    tw.wrap(pathway_name, width=40)
+)]
+
+font_size = get_font_size(title_text)
+
 show_labels = st.checkbox("Show top 20 protein labels", value=True)
 
 with st.spinner("Loading pathway boxplots..."):
@@ -77,23 +84,31 @@ with st.spinner("Loading pathway boxplots..."):
     st.dataframe(summary_table)
 
 # --- VISUALIZATION --- 
-fig = px.scatter(
+fig = make_subplots(
+    rows=1,
+    cols=1,
+    subplot_titles=title_text
+)
+
+base = px.scatter(
     diff,
     x='logFC',
     y='log_adjpval'
 )
 
-fig.update_traces(
+base.update_traces(
     selector=dict(mode='markers'),
     marker=dict(
-        size=2,           
+        size=2,
         color="lightgrey",
         opacity=0.3,
         line=dict(width=0)
     )
 )
 
-fig.update_traces(hoverinfo="none", hovertemplate=None)
+base.update_traces(hoverinfo="none", hovertemplate=None)
+
+fig.add_traces(base.data)
 
 top_scatter = px.scatter(
     diff.loc[top20], # subset the dataframe to points of interest
@@ -140,15 +155,12 @@ if show_labels:
         )
     
 fig.update_layout(
-    title=dict(
-        text=pathway_name,
-        font=dict(size=32, color="black")),
     xaxis_title=dict(
         text="logFC",
-        font=dict(size=25, color="black")),
+        font=dict(size=27, color="black")),
     yaxis_title=dict(
         text="log10(adj. pval)",
-        font=dict(size=25, color="black")),
+        font=dict(size=27, color="black")),
     plot_bgcolor='white',
     xaxis=dict(showgrid=False, gridcolor='black', showline=True, zeroline=False),
     yaxis=dict(showgrid=False, gridcolor='black', showline=True, zeroline=False),
@@ -157,18 +169,22 @@ fig.update_layout(
     showlegend=False
 )
 
+fig.layout.annotations[0].update(
+    font=dict(size=font_size, color="black")
+)
+
 fig.update_xaxes(
     showline=True,
     linecolor="black",
     tickcolor="black",
-    tickfont=dict(color="black", size=18),
+    tickfont=dict(color="black", size=21),
     zeroline=False)
 
 fig.update_yaxes(
     showline=True,
     linecolor="black",
     tickcolor="black",
-    tickfont=dict(color="black", size=18),
+    tickfont=dict(color="black", size=21),
     zeroline=False)
 
 st.plotly_chart(fig, use_container_width=True)
