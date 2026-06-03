@@ -51,7 +51,7 @@ diff = check_read_csv(f'data/differential_analysis/{cell_type}_proteome/{comp_ke
 gsea_df = check_read_csv(f'data/enrichment/{cell_type}_proteome/{comp_key}_{enrichment}_{database}_{csv_ending}.csv', selection=selection)
 
 # sliders
-st.sidebar.header("Pathway Filters")
+st.sidebar.header("Pathway Filters") # can we make the pathway filters into a function that goes into the utility file? So you don't have to duplicate code
 
 if enrichment == "GSEA":
     nes_min = float(gsea_df['NES'].min())
@@ -64,20 +64,20 @@ minvalue = int(np.floor(np.log10(minp)))
 maxvalue = int(np.ceil(np.log10(0.05)))
 padj_options = [10 ** e for e in range(minvalue, maxvalue + 1)]
 padj_range = st.sidebar.select_slider("Adjusted p-value", options=padj_options, value=(padj_options[0], padj_options[-1]))
-gsea_df = gsea_df[gsea_df['p.adjust'].between(padj_range[0],padj_range[1])]
+gsea_df = gsea_df[gsea_df['p.adjust'].between(padj_range[0],padj_range[1])] # style-wise, I think it would be better to called this filtered_gsea_df or something rather than redefining gsea_df
     
 # selecting a pathway 
 pathway_list = gsea_df['Description']
 pathway_list = sorted(pathway_list)
 pathway_name = st.sidebar.selectbox("Select Pathway", pathway_list)
 id_list = pathway_to_uniprot(gene_set, database, pathway_identifier, pathway_name, protein_identifier, entry_meta)
-id_list = [p for p in id_list if p in diff.index]
+id_list = [p for p in id_list if p in diff.index] # does this actually do anything? I thought diff and entry_meta should have the same proteins
 
 # adding some adjustments
 diff['id.mapped'] = diff.index.map(entry_meta['id.mapped'])
 diff['entry_name'] = diff.index.map(entry_meta['entry_name'])
-diff['log_adjpval'] = diff['adj.P.Val'].apply(lambda x: np.log10(x) * -1) # plot this in volcano
-diff['logFC_logpval'] = np.abs(diff['logFC']*diff['log_adjpval']) # rank proteins by this
+diff['log_adjpval'] = diff['adj.P.Val'].apply(lambda x: np.log10(x) * -1) 
+diff['logFC_logpval'] = np.abs(diff['logFC']*diff['log_adjpval']) 
 
 ranked_id_list = (diff.loc[id_list].sort_values(by='logFC_logpval', ascending=False).index.tolist())
 top20 = ranked_id_list[:20]
@@ -89,7 +89,7 @@ title_text = ["<br>".join(
 
 font_size = get_font_size(title_text)
 
-with st.spinner("Loading pathway boxplots..."):
+with st.spinner("Loading volcano plot..."): # we probably don't need this
     
     pathway_info = gsea_df[gsea_df['Description'] == pathway_name].copy()
     if 'setSize' not in pathway_info.columns:
@@ -109,10 +109,10 @@ with col1:
     options = ["Presentation Ready", "Interactive"]
     view = st.segmented_control("Visualization", options, selection_mode="single", default="Presentation Ready")
 
-with col2:
+with col2: 
     show_labels = st.checkbox("Show top 20 protein labels", value=True)
 
-if view == "Presentation Ready":
+if view == "Presentation Ready": # to do: make show_labels toggle on/off the annotations
 
     fig, ax = plt.subplots(figsize=(9,7))
     
@@ -148,7 +148,6 @@ if view == "Presentation Ready":
     st.pyplot(fig)
 
 elif view == "Interactive":
-    # --- VISUALIZATION FOR PLOTLY --- 
     fig = make_subplots(
         rows=1,
         cols=1,
@@ -171,11 +170,11 @@ elif view == "Interactive":
         )
     )
     
-    base.update_traces(hoverinfo="none", hovertemplate=None)
+    base.update_traces(hoverinfo="none", hovertemplate=None) # add into previous call to update_traces
     
     fig.add_traces(base.data)
     
-    top_scatter = px.scatter(
+    top_scatter = px.scatter( # this is currently not working as desired - we want ALL proteins in the pathway to be colored teal, but only the top 20 should be labeled
         diff.loc[top20], # subset the dataframe to points of interest
         x='logFC',
         y='log_adjpval'
