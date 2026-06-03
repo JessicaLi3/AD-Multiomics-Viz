@@ -51,8 +51,6 @@ selection = {
 diff = check_read_csv(f'data/differential_analysis/{cell_type}_proteome/{comp_key}_covDonor_genotype.csv', index_col = 0)
 enrichment_df = check_read_csv(f'data/enrichment/{cell_type}_proteome/{comp_key}_{enrichment}_{database}_{csv_ending}.csv')
 
-enrichment_df2 = enrichment_df.copy()
-
 # sliders
 if enrichment == "GSEA":
     nes_min = float(enrichment_df['NES'].min())
@@ -60,19 +58,19 @@ if enrichment == "GSEA":
     nes_range = st.sidebar.slider("NES", nes_min, nes_max, (nes_min, nes_max))
     enrichment_df = enrichment_df[enrichment_df['NES'].between(nes_range[0], nes_range[1])]
 
-minp = enrichment_df2['p.adjust'].min()
+minp = enrichment_df['p.adjust'].min()
 maxvalue = int(np.ceil(np.log10(0.05)))
 minvalue = int(np.floor(np.log10(minp)))
 padj_options = [10 ** e for e in range(minvalue, maxvalue + 1)]
 padj_range = st.sidebar.select_slider("Adjusted p-value", options=padj_options, value=(padj_options[0], padj_options[-1]))
-enrichment_df2 = enrichment_df2[enrichment_df2['p.adjust'].between(padj_range[0],padj_range[1])]
+enrichment_df = enrichment_df[enrichment_df['p.adjust'].between(padj_range[0],padj_range[1])]
 
 #sorting by significance 
 diff['log_adjpval'] = diff['adj.P.Val'].apply(lambda x: np.log10(x) * -1)
 diff['logFC_logpval'] = np.abs(diff['logFC']*diff['log_adjpval']) # rank proteins by this
 
 # selecting a pathway
-pathway_list = enrichment_df2['Description']
+pathway_list = enrichment_df['Description']
 pathway_list = sorted(pathway_list)
 pathway_name = st.sidebar.selectbox("Select or Search Pathways", pathway_list)
 

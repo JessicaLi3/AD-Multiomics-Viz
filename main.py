@@ -10,7 +10,7 @@ st.set_page_config(page_title="Proteomics v1.0", layout="centered")
 
 pages = {
     "Protein-Level Plots": [
-        st.Page("plots/boxplot.py", title="Expression Boxplot")
+        st.Page("plots/boxplot.py", title="Expression Boxplot"), st.Page("plots/proteins.py", title="All Proteins")
     ],
     "Pathway-Level Plots": [
         st.Page("plots/volcano.py", title="Pathway Volcano Plots"), st.Page("plots/pathway_boxplot.py", title="Pathway Boxplots"), st.Page("plots/scatterplot.py",          title = "Pathway Scatterplots")

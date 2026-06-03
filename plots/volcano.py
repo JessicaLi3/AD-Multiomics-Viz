@@ -50,26 +50,24 @@ selection = {
 diff = check_read_csv(f'data/differential_analysis/{cell_type}_proteome/{comp_key}_covDonor_genotype.csv', index_col = 0, selection=selection)
 gsea_df = check_read_csv(f'data/enrichment/{cell_type}_proteome/{comp_key}_{enrichment}_{database}_{csv_ending}.csv', selection=selection)
 
-gsea_df2 = gsea_df.copy()
-
 # sliders
 st.sidebar.header("Pathway Filters")
 
 if enrichment == "GSEA":
-    nes_min = float(gsea_df2['NES'].min())
-    nes_max = float(gsea_df2['NES'].max())
+    nes_min = float(gsea_df['NES'].min())
+    nes_max = float(gsea_df['NES'].max())
     nes_range = st.sidebar.slider("Normalized Enrichment Score (NES)", nes_min, nes_max, (nes_min, nes_max))
-    gsea_df2 = gsea_df2[gsea_df2['NES'].between(nes_range[0], nes_range[1])]
+    gsea_df = gsea_df[gsea_df['NES'].between(nes_range[0], nes_range[1])]
 
-minp = gsea_df2['p.adjust'].min()
+minp = gsea_df['p.adjust'].min()
 minvalue = int(np.floor(np.log10(minp)))
 maxvalue = int(np.ceil(np.log10(0.05)))
 padj_options = [10 ** e for e in range(minvalue, maxvalue + 1)]
 padj_range = st.sidebar.select_slider("Adjusted p-value", options=padj_options, value=(padj_options[0], padj_options[-1]))
-gsea_df2 = gsea_df2[gsea_df2['p.adjust'].between(padj_range[0],padj_range[1])]
+gsea_df = gsea_df[gsea_df['p.adjust'].between(padj_range[0],padj_range[1])]
     
 # selecting a pathway 
-pathway_list = gsea_df2['Description']
+pathway_list = gsea_df['Description']
 pathway_list = sorted(pathway_list)
 pathway_name = st.sidebar.selectbox("Select Pathway", pathway_list)
 id_list = pathway_to_uniprot(gene_set, database, pathway_identifier, pathway_name, protein_identifier, entry_meta)
