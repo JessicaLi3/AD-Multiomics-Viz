@@ -38,17 +38,17 @@ with st.spinner("Loading 10,000 proteins..."):
 
 # --- SIDEBAR FILTERS ---
 # Exclude metadata columns so they don't show up in the protein dropdown
-meta_cols = ['Parental.line', 'CRISPR.edits', 'Samples']
+meta_cols = ['Parental.line', 'CRISPR.edits', 'Samples'] # you don't end up using this
 entry_meta['uniprot_id.mapped_concat'] = entry_meta['id.mapped'] + '_' + entry_meta.index
 protein_list = entry_meta['uniprot_id.mapped_concat']
 protein_list = sorted(protein_list)
-default_protein = protein_list[0]
+default_protein = protein_list[0] # do we actually always need defaults? # currently gives error message when there is no default (e.g. due to very stringent behavior)
 prot_id = entry_meta[entry_meta['uniprot_id.mapped_concat'] == default_protein].index[0]
 
-st.sidebar.header("Filter")
+st.sidebar.header("Filter proteins by significance")
 mode = st.sidebar.segmented_control("Protein selection mode",["All proteins", "Filter proteins"])
-if mode == "All proteins":
-    id_name = st.sidebar.selectbox("Select or Search Protein", protein_list)
+if mode == "All proteins": 
+    id_name = st.sidebar.selectbox("Select or Search Protein", protein_list) # code duplication 
     prot_id = entry_meta[entry_meta['uniprot_id.mapped_concat'] == id_name].index[0]
 elif mode == "Filter proteins":
     comparison = st.sidebar.selectbox("Select Comparison", ["ABCA7LOF vs APOE3", "APOE4 vs APOE3"])
@@ -59,7 +59,7 @@ elif mode == "Filter proteins":
     diff = check_read_csv(f'data/differential_analysis/{cell_type}_proteome/{comp_key}_covDonor_genotype.csv', index_col = 0)
 
     logFC_range = st.sidebar.slider(
-        "logFC filter",
+        f"log fold change ({comparison})",
         float(diff['logFC'].min()),
         float(diff['logFC'].max()),
         (float(diff['logFC'].min()), float(diff['logFC'].max()))
@@ -67,8 +67,8 @@ elif mode == "Filter proteins":
    
     minp = diff['adj.P.Val'].min()
     maxvalue = int(np.ceil(np.log10(0.05)))
-    minvalue = int(np.floor(np.log10(minp)))
-    padj_options = [10 ** e for e in range(minvalue, maxvalue + 1)]
+    minvalue = int(np.floor(np.log10(minp))) 
+    padj_options = [10 ** e for e in range(minvalue, maxvalue + 1)] # let's make this slightly finer grained so that people can select 0.05 if they want
     padj_range = st.sidebar.select_slider("Adjusted p-value", options=padj_options, value=(padj_options[0], padj_options[-1]))
     
     filtered = diff[
@@ -76,9 +76,9 @@ elif mode == "Filter proteins":
         (diff['adj.P.Val'].between(padj_range[0], padj_range[1]))
     ]
 
-    filtered_proteins = sorted(filtered.index.tolist())
+    filtered_proteins = sorted(filtered.index.tolist()) 
 
-    id_name = st.sidebar.selectbox(
+    id_name = st.sidebar.selectbox( # this should be integrated with "all proteins" mode above, instead of a new selectbox
         "Select Protein",
         filtered_proteins
     )
