@@ -40,11 +40,36 @@ database = st.sidebar.selectbox("Select Database", ["reactome", "GO"])
 
 comp_key, csv_ending, pathway_identifier, gene_set, protein_identifier = file_keys(comparison, enrichment, database, cell_type)
 
-diff = pd.read_csv(f'data/differential_analysis/{cell_type}_proteome/{comp_key}_covDonor_genotype.csv', index_col = 0)
-gsea_df = pd.read_csv(f'data/enrichment/{cell_type}_proteome/{comp_key}_{enrichment}_{database}_{csv_ending}.csv')
+selection = {
+    "cell_type": cell_type,
+    "comparison": comparison,
+    "enrichment": enrichment,
+    "database": database
+}
 
+diff = check_read_csv(f'data/differential_analysis/{cell_type}_proteome/{comp_key}_covDonor_genotype.csv', index_col = 0, selection=selection)
+gsea_df = check_read_csv(f'data/enrichment/{cell_type}_proteome/{comp_key}_{enrichment}_{database}_{csv_ending}.csv', selection=selection)
+
+gsea_df2 = gsea_df.copy()
+
+# sliders
+st.sidebar.header("Pathway Filters")
+
+if enrichment == "GSEA":
+    nes_min = float(gsea_df2['NES'].min())
+    nes_max = float(gsea_df2['NES'].max())
+    nes_range = st.sidebar.slider("Normalized Enrichment Score (NES)", nes_min, nes_max, (nes_min, nes_max))
+    gsea_df2 = gsea_df2[gsea_df2['NES'].between(nes_range[0], nes_range[1])]
+
+minp = gsea_df2['p.adjust'].min()
+minvalue = int(np.floor(np.log10(minp)))
+maxvalue = int(np.ceil(np.log10(0.05)))
+padj_options = [10 ** e for e in range(minvalue, maxvalue + 1)]
+padj_range = st.sidebar.select_slider("Adjusted p-value", options=padj_options, value=(padj_options[0], padj_options[-1]))
+gsea_df2 = gsea_df2[gsea_df2['p.adjust'].between(padj_range[0],padj_range[1])]
+    
 # selecting a pathway 
-pathway_list = gsea_df['Description']
+pathway_list = gsea_df2['Description']
 pathway_list = sorted(pathway_list)
 pathway_name = st.sidebar.selectbox("Select Pathway", pathway_list)
 id_list = pathway_to_uniprot(gene_set, database, pathway_identifier, pathway_name, protein_identifier, entry_meta)
@@ -66,8 +91,6 @@ title_text = ["<br>".join(
 
 font_size = get_font_size(title_text)
 
-show_labels = st.checkbox("Show top 20 protein labels", value=True)
-
 with st.spinner("Loading pathway boxplots..."):
     
     pathway_info = gsea_df[gsea_df['Description'] == pathway_name].copy()
@@ -83,108 +106,153 @@ with st.spinner("Loading pathway boxplots..."):
         'NES']]
     st.dataframe(summary_table)
 
-# --- VISUALIZATION --- 
-fig = make_subplots(
-    rows=1,
-    cols=1,
-    subplot_titles=title_text
-)
+col1, col2 = st.columns([2, 1])
+with col1:
+    options = ["Presentation Ready", "Interactive"]
+    view = st.segmented_control("Visualization", options, selection_mode="single", default="Presentation Ready")
 
-base = px.scatter(
-    diff,
-    x='logFC',
-    y='log_adjpval'
-)
+with col2:
+    show_labels = st.checkbox("Show top 20 protein labels", value=True)
 
-base.update_traces(
-    selector=dict(mode='markers'),
-    marker=dict(
-        size=2,
-        color="lightgrey",
-        opacity=0.3,
-        line=dict(width=0)
-    )
-)
+if view == "Presentation Ready":
 
-base.update_traces(hoverinfo="none", hovertemplate=None)
-
-fig.add_traces(base.data)
-
-top_scatter = px.scatter(
-    diff.loc[top20], # subset the dataframe to points of interest
-    x='logFC',
-    y='log_adjpval'
-)
-
-top_scatter.update_traces(
-    selector=dict(mode='markers'),
-    marker=dict(
-        size=4,           
-        color="teal",
-        opacity = 1,
-        line=dict(color="teal", width=1)
-    ),
-    customdata=np.stack([
-        top20_df['id.mapped'],
-        top20_df['entry_name'],
-        top20_df.index,
-    ], axis=-1),
-    hovertemplate=(
-        "Gene Symbol: %{customdata[0]}<br>"
-        "Full name: %{customdata[1]}<br>"
-        "UniProt: %{customdata[2]}<br>"
-        "logFC: %{x:.2f}<br>"
-        "adj p-value: %{y:.2f}<extra></extra>"
-    )
-)
-
-fig.add_traces(top_scatter.data)
-fig.update_layout(template="plotly_white")
-
-if show_labels:
-    for prot_id in top20:
-        fig.add_annotation(
-            x=diff.loc[prot_id, 'logFC'],
-            y=diff.loc[prot_id, 'log_adjpval'],
-            text=diff.loc[prot_id, 'id.mapped'],
-            showarrow=False,
-            xshift=10,
-            yshift=10,
-            align="left",
-            font=dict(size=13, color="black")
-        )
+    fig, ax = plt.subplots(figsize=(9,7))
     
-fig.update_layout(
-    xaxis_title=dict(
-        text="logFC",
-        font=dict(size=27, color="black")),
-    yaxis_title=dict(
-        text="log10(adj. pval)",
-        font=dict(size=27, color="black")),
-    plot_bgcolor='white',
-    xaxis=dict(showgrid=False, gridcolor='black', showline=True, zeroline=False),
-    yaxis=dict(showgrid=False, gridcolor='black', showline=True, zeroline=False),
-    height=600,
-    width=700,
-    showlegend=False
-)
+    # plot all the proteins in the experiment
+    ax = sns.scatterplot(data = diff, x = 'logFC', y = 'log_adjpval',
+                         s = 20, alpha = 0.4, linewidth = 0, color = 'lightgrey')
+    
+    # plot all the proteins in the pathway
+    ax = sns.scatterplot(data = diff.loc[ranked_id_list], x = 'logFC', y = 'log_adjpval',
+                         s = 20, alpha = 1, linewidth = 0, color = 'mediumaquamarine')
+    ax.set_title(tw.fill(f'{pathway_name}', width = 50), fontsize = 25)
+    ax.set_xlabel(f'logFC\n({comp_key})', fontsize = 15)
+    ax.set_ylabel(f'log10(adj. pval)', fontsize = 15)
+    
+    # label the top 20 proteins in the pathway (ranked by logFC_logpval)
+    annotations = []
+    for prot_id in ranked_id_list[0:20]:
+        x = diff.loc[prot_id, 'logFC']
+        y = diff.loc[prot_id, 'log_adjpval']
+        text = diff.loc[prot_id, 'id.mapped']
+        annotations.append(ax.annotate(text, (x,y), fontsize = 12))
+    
+    # moves the labels around
+    adjust_text(
+        annotations,
+        force_text = (0.5,0.5),
+        force_static = (0.01,0.01),
+        max_move = (30,20),
+        force_explode = (0.5,0.5),
+        arrowprops = dict(arrowstyle = '-'),
+        ax = ax);
+    
+    st.pyplot(fig)
 
-fig.layout.annotations[0].update(
-    font=dict(size=font_size, color="black")
-)
+elif view == "Interactive":
+    # --- VISUALIZATION FOR PLOTLY --- 
+    fig = make_subplots(
+        rows=1,
+        cols=1,
+        subplot_titles=title_text
+    )
+    
+    base = px.scatter(
+        diff,
+        x='logFC',
+        y='log_adjpval'
+    )
+    
+    base.update_traces(
+        selector=dict(mode='markers'),
+        marker=dict(
+            size=2,
+            color="lightgrey",
+            opacity=0.3,
+            line=dict(width=0)
+        )
+    )
+    
+    base.update_traces(hoverinfo="none", hovertemplate=None)
+    
+    fig.add_traces(base.data)
+    
+    top_scatter = px.scatter(
+        diff.loc[top20], # subset the dataframe to points of interest
+        x='logFC',
+        y='log_adjpval'
+    )
+    
+    top_scatter.update_traces(
+        selector=dict(mode='markers'),
+        marker=dict(
+            size=4,           
+            color="teal",
+            opacity = 1,
+            line=dict(color="teal", width=1)
+        ),
+        customdata=np.stack([
+            top20_df['id.mapped'],
+            top20_df['entry_name'],
+            top20_df.index,
+        ], axis=-1),
+        hovertemplate=(
+            "Gene Symbol: %{customdata[0]}<br>"
+            "Full name: %{customdata[1]}<br>"
+            "UniProt: %{customdata[2]}<br>"
+            "logFC: %{x:.2f}<br>"
+            "adj p-value: %{y:.2f}<extra></extra>"
+        )
+    )
+    
+    fig.add_traces(top_scatter.data)
+    fig.update_layout(template="plotly_white")
+    
+    if show_labels:
+        for prot_id in top20:
+            fig.add_annotation(
+                x=diff.loc[prot_id, 'logFC'],
+                y=diff.loc[prot_id, 'log_adjpval'],
+                text=diff.loc[prot_id, 'id.mapped'],
+                showarrow=False,
+                xshift=10,
+                yshift=10,
+                align="left",
+                font=dict(size=13, color="black")
+            )
+        
+    fig.update_layout(
+        xaxis_title=dict(
+            text="logFC",
+            font=dict(size=27, color="black")),
+        yaxis_title=dict(
+            text="log10(adj. pval)",
+            font=dict(size=27, color="black")),
+        plot_bgcolor='white',
+        xaxis=dict(showgrid=False, gridcolor='black', showline=True, zeroline=False),
+        yaxis=dict(showgrid=False, gridcolor='black', showline=True, zeroline=False),
+        height=600,
+        width=700,
+        showlegend=False
+    )
+    
+    fig.layout.annotations[0].update(
+        font=dict(size=font_size, color="black")
+    )
+    
+    fig.update_xaxes(
+        showline=True,
+        linecolor="black",
+        tickcolor="black",
+        tickfont=dict(color="black", size=21),
+        zeroline=False)
+    
+    fig.update_yaxes(
+        showline=True,
+        linecolor="black",
+        tickcolor="black",
+        tickfont=dict(color="black", size=21),
+        zeroline=False)
+    
+    st.plotly_chart(fig, use_container_width=True)
 
-fig.update_xaxes(
-    showline=True,
-    linecolor="black",
-    tickcolor="black",
-    tickfont=dict(color="black", size=21),
-    zeroline=False)
-
-fig.update_yaxes(
-    showline=True,
-    linecolor="black",
-    tickcolor="black",
-    tickfont=dict(color="black", size=21),
-    zeroline=False)
-
-st.plotly_chart(fig, use_container_width=True)

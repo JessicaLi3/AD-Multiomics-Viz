@@ -42,11 +42,49 @@ meta_cols = ['Parental.line', 'CRISPR.edits', 'Samples']
 entry_meta['uniprot_id.mapped_concat'] = entry_meta['id.mapped'] + '_' + entry_meta.index
 protein_list = entry_meta['uniprot_id.mapped_concat']
 protein_list = sorted(protein_list)
+default_protein = protein_list[0]
+prot_id = entry_meta[entry_meta['uniprot_id.mapped_concat'] == default_protein].index[0]
 
-st.sidebar.header("Controls")
-id_name = st.sidebar.selectbox("Select or Search Protein", protein_list)
-prot_id = entry_meta[entry_meta['uniprot_id.mapped_concat'] == id_name].index[0]
+st.sidebar.header("Filter")
+mode = st.sidebar.segmented_control("Protein selection mode",["All proteins", "Filter proteins"])
+if mode == "All proteins":
+    id_name = st.sidebar.selectbox("Select or Search Protein", protein_list)
+    prot_id = entry_meta[entry_meta['uniprot_id.mapped_concat'] == id_name].index[0]
+elif mode == "Filter proteins":
+    comparison = st.sidebar.selectbox("Select Comparison", ["ABCA7LOF vs APOE3", "APOE4 vs APOE3"])
+    if comparison == "ABCA7LOF vs APOE3":
+        comp_key = "ABCA7LOFvnormal"
+    elif comparison == "APOE4 vs APOE3":
+        comp_key = "APOE4v3"
+    diff = check_read_csv(f'data/differential_analysis/{cell_type}_proteome/{comp_key}_covDonor_genotype.csv', index_col = 0)
 
+    logFC_range = st.sidebar.slider(
+        "logFC filter",
+        float(diff['logFC'].min()),
+        float(diff['logFC'].max()),
+        (float(diff['logFC'].min()), float(diff['logFC'].max()))
+    )
+   
+    minp = diff['adj.P.Val'].min()
+    maxvalue = int(np.ceil(np.log10(0.05)))
+    minvalue = int(np.floor(np.log10(minp)))
+    padj_options = [10 ** e for e in range(minvalue, maxvalue + 1)]
+    padj_range = st.sidebar.select_slider("Adjusted p-value", options=padj_options, value=(padj_options[0], padj_options[-1]))
+    
+    filtered = diff[
+        (diff['logFC'].between(logFC_range[0], logFC_range[1])) &
+        (diff['adj.P.Val'].between(padj_range[0], padj_range[1]))
+    ]
+
+    filtered_proteins = sorted(filtered.index.tolist())
+
+    id_name = st.sidebar.selectbox(
+        "Select Protein",
+        filtered_proteins
+    )
+
+    prot_id = id_name
+    
 # --- VISUALIZATION ---
 col1, col2 = st.columns([1, 2])
 
@@ -189,27 +227,4 @@ with col2:
         boxmode="group"
     )
     
-    # fig.update_layout(
-    #     legend=dict(
-    #         x=1,
-    #         y=0.98,
-    #         xanchor="left",
-    #         yanchor="top"
-    #     )
-    # )
-    
-    # fig.update_layout(
-    #     margin=dict(l=80, r=150, t=80, b=80)
-    # )
-
-    config = {
-        'toImageButtonOptions': {
-        'format': 'svg', 
-        'filename': 'newplot',
-        'height': 500,
-        'width': 1100,
-        'scale': 1 # can increase for higher resolution
-      }
-    }
-
-    st.plotly_chart(fig, config=config, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True)

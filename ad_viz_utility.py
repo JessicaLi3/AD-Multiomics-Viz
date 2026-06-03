@@ -111,3 +111,20 @@ def get_font_size(title_text):
     else: 
         font_size = 25
     return font_size
+
+def check_read_csv(path, index_col=None, selection=None):
+    try:
+        return pd.read_csv(path, index_col=index_col)
+    except FileNotFoundError:
+        st.error(
+            f"""
+            No significant results for this comparison.
+
+            Selection:
+            - Cell type: {selection['cell_type']}
+            - Comparison: {selection['comparison']}
+            - Enrichment: {selection['enrichment']}
+            - Database: {selection['database']}
+            """
+        )
+        st.stop()
