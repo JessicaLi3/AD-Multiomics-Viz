@@ -16,7 +16,7 @@ sys.path.append('../')
 from ad_viz_utility import *
 
 # Page Config
-st.set_page_config(page_title="Proteomics v1.0", layout="wide")
+st.set_page_config(page_title="Proteomics v1.0", layout="wide") # make sure titles are consistent for all pages -- can we turn this into a utility function?
 
 # # --- SIDEBAR FILTERS --- 
 st.sidebar.header("Controls")
@@ -28,7 +28,7 @@ elif cell_type == "microglia":
     sampcol = 'Sample'
 elif cell_type == "pericytes":
     sampcol = 'Sample'
-with st.spinner("Loading 10,000 proteins..."):
+with st.spinner("Loading 10,000 proteins..."): # we probably don't need this
     intensity, samp_meta, entry_meta = load_data(
         f'data/proteomics/{cell_type}_prot_data.csv',
         f'data/proteomics/{cell_type}_prot_samp_meta.csv',
@@ -55,7 +55,7 @@ enrichment_df = check_read_csv(f'data/enrichment/{cell_type}_proteome/{comp_key}
 if enrichment == "GSEA":
     nes_min = float(enrichment_df['NES'].min())
     nes_max = float(enrichment_df['NES'].max())
-    nes_range = st.sidebar.slider("NES", nes_min, nes_max, (nes_min, nes_max))
+    nes_range = st.sidebar.slider("Normalized Enrichment Score (NES)", nes_min, nes_max, (nes_min, nes_max))
     enrichment_df = enrichment_df[enrichment_df['NES'].between(nes_range[0], nes_range[1])]
 
 minp = enrichment_df['p.adjust'].min()
@@ -67,7 +67,7 @@ enrichment_df = enrichment_df[enrichment_df['p.adjust'].between(padj_range[0],pa
 
 #sorting by significance 
 diff['log_adjpval'] = diff['adj.P.Val'].apply(lambda x: np.log10(x) * -1)
-diff['logFC_logpval'] = np.abs(diff['logFC']*diff['log_adjpval']) # rank proteins by this
+diff['logFC_logpval'] = np.abs(diff['logFC']*diff['log_adjpval']) 
 
 # selecting a pathway
 pathway_list = enrichment_df['Description']
@@ -84,7 +84,7 @@ if pathway_name != st.session_state.previous_pathway:
 # Setting up pages
 id_list = pathway_to_uniprot(gene_set, database, pathway_identifier, pathway_name, protein_identifier, entry_meta)
 id_list = [p for p in id_list if p in entry_meta.index]
-ranked_id_list = (diff.loc[id_list].sort_values(by='logFC_logpval', ascending=False).index.tolist())
+ranked_id_list = (diff.loc[id_list].sort_values(by='logFC_logpval', ascending=False).index.tolist()) 
 
 plots_per_page = 9
 
@@ -99,11 +99,12 @@ valid_proteins = [p for p in current_proteins if p in intensity.columns]
 
 st.write(f"### Showing proteins {start_idx + 1} to {min(end_idx, len(ranked_id_list))} "
         f"out of {len(ranked_id_list)} proteins (Page {st.session_state.current_page + 1} of {total_pages})")
+st.text(f"Proteins ordered by significance metric: log(fold change) * -log(pvalue)")
 
 with st.spinner("Loading pathway boxplots..."):
     
-    pathway_info = enrichment_df[enrichment_df['Description'] == pathway_name].copy()
-    if 'setSize' not in pathway_info.columns:
+    pathway_info = enrichment_df[enrichment_df['Description'] == pathway_name].copy() 
+    if 'setSize' not in pathway_info.columns: # let's change this behavior: for ORA, where setSize and NES is missing, let's just not display those columns at all (redefine summary_table columns for ORA vs. GSEA instead of setting these values to np.nan)
         pathway_info['setSize'] = np.nan
     if 'NES' not in pathway_info.columns:
         pathway_info['NES'] = np.nan
@@ -135,7 +136,7 @@ fig = make_subplots(
 )
 
 for i, prot_id in enumerate(valid_proteins):
-# boxplots
+    # boxplots
     plot_df = intensity[[prot_id]].copy()
     plot_df.columns = ["value"]
     plot_df = plot_df.merge(samp_meta[['Parental.line', 'CRISPR.edits', sampcol]], left_index = True, right_index = True)
