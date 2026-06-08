@@ -16,7 +16,7 @@ sys.path.append('../')
 from ad_viz_utility import *
 
 # Page Config
-st.set_page_config(page_title="Proteomics v1.0", layout="wide") # make sure titles are consistent for all pages -- can we turn this into a utility function?
+set_config()
 
 # # --- SIDEBAR FILTERS --- 
 st.sidebar.header("Controls")
@@ -28,16 +28,14 @@ elif cell_type == "microglia":
     sampcol = 'Sample'
 elif cell_type == "pericytes":
     sampcol = 'Sample'
-with st.spinner("Loading 10,000 proteins..."): # we probably don't need this
-    intensity, samp_meta, entry_meta = load_data(
-        f'data/proteomics/{cell_type}_prot_data.csv',
-        f'data/proteomics/{cell_type}_prot_samp_meta.csv',
-        f'data/proteomics/{cell_type}_prot_meta.csv', 
-        sample_col = sampcol)
+    
+intensity, samp_meta, entry_meta = load_data(
+f'data/proteomics/{cell_type}_prot_data.csv',
+f'data/proteomics/{cell_type}_prot_samp_meta.csv',
+f'data/proteomics/{cell_type}_prot_meta.csv', 
+sample_col = sampcol)
 
-comparison = st.sidebar.selectbox("Select Comparison", ["ABCA7LOF vs APOE3", "APOE4 vs APOE3"])
-enrichment = st.sidebar.selectbox("Select Enrichment Type", ["GSEA", "ORA"])
-database = st.sidebar.selectbox("Select Database", ["reactome", "GO"])
+comparison, enrichment, database = sidebar_selectors()
  
 comp_key, csv_ending, pathway_identifier, gene_set, protein_identifier = file_keys(comparison, enrichment, database, cell_type)
 
@@ -51,19 +49,7 @@ selection = {
 diff = check_read_csv(f'data/differential_analysis/{cell_type}_proteome/{comp_key}_covDonor_genotype.csv', index_col = 0)
 enrichment_df = check_read_csv(f'data/enrichment/{cell_type}_proteome/{comp_key}_{enrichment}_{database}_{csv_ending}.csv')
 
-# sliders
-if enrichment == "GSEA":
-    nes_min = float(enrichment_df['NES'].min())
-    nes_max = float(enrichment_df['NES'].max())
-    nes_range = st.sidebar.slider("Normalized Enrichment Score (NES)", nes_min, nes_max, (nes_min, nes_max))
-    enrichment_df = enrichment_df[enrichment_df['NES'].between(nes_range[0], nes_range[1])]
-
-minp = enrichment_df['p.adjust'].min()
-maxvalue = int(np.ceil(np.log10(0.05)))
-minvalue = int(np.floor(np.log10(minp)))
-padj_options = [10 ** e for e in range(minvalue, maxvalue + 1)]
-padj_range = st.sidebar.select_slider("Adjusted p-value", options=padj_options, value=(padj_options[0], padj_options[-1]))
-enrichment_df = enrichment_df[enrichment_df['p.adjust'].between(padj_range[0],padj_range[1])]
+filtered_enrichment_df = pathway_filters(enrichment_df, enrichment)
 
 #sorting by significance 
 diff['log_adjpval'] = diff['adj.P.Val'].apply(lambda x: np.log10(x) * -1)
@@ -104,16 +90,12 @@ st.text(f"Proteins ordered by significance metric: log(fold change) * -log(pvalu
 with st.spinner("Loading pathway boxplots..."):
     
     pathway_info = enrichment_df[enrichment_df['Description'] == pathway_name].copy() 
-    if 'setSize' not in pathway_info.columns: # let's change this behavior: for ORA, where setSize and NES is missing, let's just not display those columns at all (redefine summary_table columns for ORA vs. GSEA instead of setting these values to np.nan)
-        pathway_info['setSize'] = np.nan
-    if 'NES' not in pathway_info.columns:
-        pathway_info['NES'] = np.nan
-
-    summary_table = pathway_info[[
+    possible_summary_cols = [
         'Description',
         'p.adjust',
         'setSize',
-        'NES']]
+        'NES']
+    summary_table = pathway_info[[x for x in possible_summary_cols if x in pathway_info.columns]]
     st.dataframe(summary_table)
 
 subplot_titles = [

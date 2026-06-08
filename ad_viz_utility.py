@@ -128,3 +128,29 @@ def check_read_csv(path, index_col=None, selection=None):
             """
         )
         st.stop()
+
+def set_config():
+    st.set_page_config(page_title="AD Multiomics Viz", layout="wide")
+
+def sidebar_selectors():
+    comparison = st.sidebar.selectbox("Select Comparison", ["ABCA7LOF vs APOE3", "APOE4 vs APOE3"])
+    enrichment = st.sidebar.selectbox("Select Enrichment Type", ["GSEA", "ORA"])
+    database = st.sidebar.selectbox("Select Database", ["reactome", "GO"])
+    return comparison, enrichment, database
+
+def pathway_filters(enrichment_df, enrichment):
+    if enrichment == "GSEA":
+        nes_min = float(enrichment_df['NES'].min())
+        nes_max = float(enrichment_df['NES'].max())
+        nes_range = st.sidebar.slider("Normalized Enrichment Score (NES)", nes_min, nes_max, (nes_min, nes_max))
+        filtered_enrichment_df = enrichment_df[enrichment_df['NES'].between(nes_range[0], nes_range[1])]
+    else:
+        filtered_enrichment_df = enrichment_df
+        
+    minp = filtered_enrichment_df['p.adjust'].min()
+    minvalue = int(np.floor(np.log10(minp)))
+    maxvalue = int(np.ceil(np.log10(0.05)))
+    padj_options = [10 ** e for e in range(minvalue, maxvalue + 1)]
+    padj_range = st.sidebar.select_slider("Adjusted p-value", options=padj_options, value=(padj_options[0], padj_options[-1]))
+    filtered_enrichment_df = filtered_enrichment_df[filtered_enrichment_df['p.adjust'].between(padj_range[0],padj_range[1])] 
+    return filtered_enrichment_df

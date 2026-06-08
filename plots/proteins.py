@@ -13,7 +13,7 @@ sys.path.append('../')
 from ad_viz_utility import *
 
 # Page Config
-st.set_page_config(page_title="Proteomics v1.0", layout="wide")
+set_config()
 
 # Load Data
 st.sidebar.header("Controls")
@@ -24,12 +24,12 @@ elif cell_type == "microglia":
     sampcol = 'Sample'
 elif cell_type == "pericytes":
     sampcol = 'Sample'
-with st.spinner("Loading 10,000 proteins..."):
-    intensity, samp_meta, entry_meta = load_data(
-        f'data/proteomics/{cell_type}_prot_data.csv',
-        f'data/proteomics/{cell_type}_prot_samp_meta.csv',
-        f'data/proteomics/{cell_type}_prot_meta.csv', 
-        sample_col = sampcol)
+    
+intensity, samp_meta, entry_meta = load_data(
+f'data/proteomics/{cell_type}_prot_data.csv',
+f'data/proteomics/{cell_type}_prot_samp_meta.csv',
+f'data/proteomics/{cell_type}_prot_meta.csv', 
+sample_col = sampcol)
 
 comparison = st.sidebar.selectbox("Select Comparison", ["ABCA7LOF vs APOE3", "APOE4 vs APOE3"])
 
@@ -44,6 +44,10 @@ diff['id.mapped'] = diff.index.map(entry_meta['id.mapped'])
 diff['entry_name'] = diff.index.map(entry_meta['entry_name'])
 diff['log_adjpval'] = diff['adj.P.Val'].apply(lambda x: np.log10(x) * -1)
 
+diff['color'] = "gray"
+diff.loc[(diff['log_adjpval'] > 1) & (diff['logFC'] < 0), 'color'] = "blue"
+diff.loc[(diff['log_adjpval'] > 1) & (diff['logFC'] > 0), 'color'] = "red"
+    
 fig = make_subplots(
     rows=1,
     cols=1,
@@ -52,14 +56,19 @@ fig = make_subplots(
 scatter = px.scatter(
     diff,
     x='logFC',
-    y='log_adjpval'
+    y='log_adjpval',
+    color="color",
+    color_discrete_map={
+        "gray": "lightgray",
+        "blue": "blue",
+        "red": "red"
+    }
 )
 
 scatter.update_traces(
     selector=dict(mode='markers'),
     marker=dict(
         size=6,           
-        color="gray",
         opacity = 0.5,
     ),
     customdata=np.stack([
@@ -78,9 +87,13 @@ scatter.update_traces(
 
 fig.add_traces(scatter.data)
 
+if comp_key == "ABCA7LOFvnormal":
+    xaxis_title = "logFC<br><-- higher in APOE3      higher in ABCA7 -->"
+elif comp_key == "APOE4v3":
+    xaxis_title = "logFC<br><-- higher in APOE3      higher in APOE4 -->"
 fig.update_layout(
     xaxis_title=dict(
-        text="logFC",
+        text=xaxis_title,
         font=dict(size=27, color="black")),
     yaxis_title=dict(
         text="log10(adj. pval)",
@@ -97,6 +110,7 @@ fig.update_xaxes(
     showline=True,
     linecolor="black",
     tickcolor="black",
+    tickfont=dict(size=24, color="black"),
     zeroline=False
 )
 
@@ -104,7 +118,10 @@ fig.update_yaxes(
     showline=True,
     linecolor="black",
     tickcolor="black",
+    tickfont=dict(size=24, color="black"),
     zeroline=False
 )
+
+fig.add_hline(y=1)
 
 st.plotly_chart(fig, use_container_width=True)

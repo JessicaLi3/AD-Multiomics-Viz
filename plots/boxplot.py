@@ -15,10 +15,7 @@ from ad_viz_utility import *
 max_msg_size = st.get_option("server.maxMessageSize")
 
 # Page Config
-st.set_page_config(page_title="Proteomics v1.0", layout="wide")
-# add a comment
-
-st.title("🔬 Proteomics Data Explorer v0.1")
+set_config()
 
 # Load Data
 st.sidebar.header("Controls")
@@ -29,34 +26,28 @@ elif cell_type == "microglia":
     sampcol = 'Sample'
 elif cell_type == "pericytes":
     sampcol = 'Sample'
-with st.spinner("Loading 10,000 proteins..."):
-    intensity, samp_meta, entry_meta = load_data(
-        f'data/proteomics/{cell_type}_prot_data.csv',
-        f'data/proteomics/{cell_type}_prot_samp_meta.csv',
-        f'data/proteomics/{cell_type}_prot_meta.csv', 
-        sample_col = sampcol)
+
+intensity, samp_meta, entry_meta = load_data(
+f'data/proteomics/{cell_type}_prot_data.csv',
+f'data/proteomics/{cell_type}_prot_samp_meta.csv',
+f'data/proteomics/{cell_type}_prot_meta.csv', 
+sample_col = sampcol)
 
 # --- SIDEBAR FILTERS ---
 # Exclude metadata columns so they don't show up in the protein dropdown
-meta_cols = ['Parental.line', 'CRISPR.edits', 'Samples'] # you don't end up using this
 entry_meta['uniprot_id.mapped_concat'] = entry_meta['id.mapped'] + '_' + entry_meta.index
-protein_list = entry_meta['uniprot_id.mapped_concat']
-protein_list = sorted(protein_list)
-default_protein = protein_list[0] # do we actually always need defaults? # currently gives error message when there is no default (e.g. due to very stringent behavior)
-prot_id = entry_meta[entry_meta['uniprot_id.mapped_concat'] == default_protein].index[0]
+
+comparison = st.sidebar.selectbox("Select Comparison", ["ABCA7LOF vs APOE3", "APOE4 vs APOE3"])
+if comparison == "ABCA7LOF vs APOE3":
+    comp_key = "ABCA7LOFvnormal"
+elif comparison == "APOE4 vs APOE3":
+    comp_key = "APOE4v3"
+diff = check_read_csv(f'data/differential_analysis/{cell_type}_proteome/{comp_key}_covDonor_genotype.csv', index_col = 0)
+diff['uniprot_id.mapped_concat'] = entry_meta.loc[diff.index, 'uniprot_id.mapped_concat']
 
 st.sidebar.header("Filter proteins by significance")
-mode = st.sidebar.segmented_control("Protein selection mode",["All proteins", "Filter proteins"])
-if mode == "All proteins": 
-    id_name = st.sidebar.selectbox("Select or Search Protein", protein_list) # code duplication 
-    prot_id = entry_meta[entry_meta['uniprot_id.mapped_concat'] == id_name].index[0]
-elif mode == "Filter proteins":
-    comparison = st.sidebar.selectbox("Select Comparison", ["ABCA7LOF vs APOE3", "APOE4 vs APOE3"])
-    if comparison == "ABCA7LOF vs APOE3":
-        comp_key = "ABCA7LOFvnormal"
-    elif comparison == "APOE4 vs APOE3":
-        comp_key = "APOE4v3"
-    diff = check_read_csv(f'data/differential_analysis/{cell_type}_proteome/{comp_key}_covDonor_genotype.csv', index_col = 0)
+mode = st.sidebar.segmented_control("Protein selection mode",["All proteins", "Filter proteins"], default = "All proteins")
+if mode == "Filter proteins": 
 
     logFC_range = st.sidebar.slider(
         f"log fold change ({comparison})",
@@ -64,27 +55,30 @@ elif mode == "Filter proteins":
         float(diff['logFC'].max()),
         (float(diff['logFC'].min()), float(diff['logFC'].max()))
     )
-   
+
     minp = diff['adj.P.Val'].min()
     maxvalue = int(np.ceil(np.log10(0.05)))
     minvalue = int(np.floor(np.log10(minp))) 
-    padj_options = [10 ** e for e in range(minvalue, maxvalue + 1)] # let's make this slightly finer grained so that people can select 0.05 if they want
+    padj_options = [round(num,12) for e in range(minvalue, maxvalue + 1) for num in (10**e, 5*10**e)]
     padj_range = st.sidebar.select_slider("Adjusted p-value", options=padj_options, value=(padj_options[0], padj_options[-1]))
-    
+
     filtered = diff[
         (diff['logFC'].between(logFC_range[0], logFC_range[1])) &
         (diff['adj.P.Val'].between(padj_range[0], padj_range[1]))
     ]
 
-    filtered_proteins = sorted(filtered.index.tolist()) 
-
-    id_name = st.sidebar.selectbox( # this should be integrated with "all proteins" mode above, instead of a new selectbox
-        "Select Protein",
-        filtered_proteins
-    )
-
-    prot_id = id_name
+elif mode == "All proteins":
+    filtered = diff
     
+protein_list = sorted(filtered['uniprot_id.mapped_concat'].tolist()) 
+
+if len(protein_list) == 0:
+    st.error("No proteins match the current filters.")
+    st.stop()
+
+id_name = st.sidebar.selectbox("Select or Search Protein", protein_list) 
+prot_id = entry_meta[entry_meta['uniprot_id.mapped_concat'] == id_name].index[0]
+        
 # --- VISUALIZATION ---
 col1, col2 = st.columns([1, 2])
 
