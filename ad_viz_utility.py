@@ -75,7 +75,7 @@ def lookup_by_protid(protein_id: str, protein_metadata: pd.DataFrame,
     # assumes only one row will be returned (index is unique)
     return protein_metadata.loc[protein_id, name_col]
 
-def file_keys(comparison, enrichment, database, cell_type):
+def file_keys(comparison, enrichment):
     #comparison
     if comparison == "ABCA7LOF vs APOE3":
         comp_key = "ABCA7LOFvnormal"
@@ -86,19 +86,64 @@ def file_keys(comparison, enrichment, database, cell_type):
     if enrichment == "GSEA":
         csv_ending = "logFC_pval_table"
     elif enrichment == "ORA":
-        csv_ending = "enrichment_table"
+        csv_ending = "enrichment_table"       
+    elif enrichment == "All":
+        csv_ending = None
         
     #database
-    if database == "reactome":
-        pathway_identifier = "clean_name"
-        gene_set = filtered_reactome_gene_sets 
-        protein_identifier = "gene"
-    elif database == "GO":
-        pathway_identifier = "TERM"
-        gene_set = load_GO_data(cell_type)
-        protein_identifier = "UNIPROT"
+    #if database == "reactome":
+        #pathway_identifier = "clean_name"
+        #gene_set = filtered_reactome_gene_sets 
+        #protein_identifier = "gene"
+    #elif database == "GO":
+        #pathway_identifier = "TERM"
+        #gene_set = load_GO_data(cell_type)
+        #protein_identifier = "UNIPROT"
 
-    return comp_key, csv_ending, pathway_identifier, gene_set, protein_identifier
+    return comp_key, csv_ending
+
+def load_enrichment_df(cell_type, comp_key, enrichment, database, selection):
+    csv_ending_map = {"GSEA": "logFC_pval_table", "ORA": "enrichment_table"}
+
+    if database == "All" and enrichment == "All":
+        go_gsea = check_read_csv(f'data/enrichment/{cell_type}_proteome/{comp_key}_GSEA_GO_logFC_pval_table.csv', selection=selection)
+        go_ora = check_read_csv(f'data/enrichment/{cell_type}_proteome/{comp_key}_ORA_GO_enrichment_table.csv', selection=selection)
+        reactome_gsea = check_read_csv(f'data/enrichment/{cell_type}_proteome/{comp_key}_GSEA_reactome_logFC_pval_table.csv', selection=selection)
+        reactome_ora = check_read_csv(f'data/enrichment/{cell_type}_proteome/{comp_key}_ORA_reactome_enrichment_table.csv', selection=selection)
+        go_gsea["Database"] = "GO"
+        go_gsea["enrichment_type"] = "GSEA"
+        go_ora["Database"] = "GO" 
+        go_ora["enrichment_type"] ="ORA"
+        reactome_gsea["Database"] = "reactome" 
+        reactome_gsea["enrichment_type"] = "GSEA"
+        reactome_ora["Database"] = "reactome" 
+        reactome_ora["enrichment_type"] = "ORA"
+        return pd.concat([go_gsea, go_ora, reactome_gsea, reactome_ora], ignore_index=True)
+
+    elif database == "All":
+        go_df = check_read_csv(f'data/enrichment/{cell_type}_proteome/{comp_key}_{enrichment}_GO_{csv_ending_map[enrichment]}.csv', selection=selection)
+        reactome_df = check_read_csv(f'data/enrichment/{cell_type}_proteome/{comp_key}_{enrichment}_reactome_{csv_ending_map[enrichment]}.csv',   
+                      selection=selection)
+        go_df["Database"] = "GO" 
+        go_df["enrichment_type"] = enrichment
+        reactome_df["Database"] = "reactome" 
+        reactome_df["enrichment_type"] = enrichment
+        return pd.concat([go_df, reactome_df], ignore_index=True)
+
+    elif enrichment == "All":
+        gsea_df = check_read_csv(f'data/enrichment/{cell_type}_proteome/{comp_key}_GSEA_{database}_logFC_pval_table.csv', selection=selection)
+        ora_df = check_read_csv(f'data/enrichment/{cell_type}_proteome/{comp_key}_ORA_{database}_enrichment_table.csv', selection=selection)
+        gsea_df["Database"] = database
+        gsea_df["enrichment_type"] = "GSEA"
+        ora_df["Database"] = database
+        ora_df["enrichment_type"] = "ORA"
+        return pd.concat([gsea_df, ora_df], ignore_index=True)
+
+    else:
+        df = check_read_csv(f'data/enrichment/{cell_type}_proteome/{comp_key}_{enrichment}_{database}_{csv_ending_map[enrichment]}.csv', selection=selection)
+        df["Database"] = database
+        df["enrichment_type"] = enrichment
+        return df
 
 def i_to_row_col(i, cols):
     row = i // cols + 1 #returns division
@@ -134,16 +179,18 @@ def set_config():
 
 def sidebar_selectors():
     comparison = st.sidebar.selectbox("Select Comparison", ["ABCA7LOF vs APOE3", "APOE4 vs APOE3"])
-    enrichment = st.sidebar.selectbox("Select Enrichment Type", ["GSEA", "ORA"])
-    database = st.sidebar.selectbox("Select Database", ["reactome", "GO"])
+    enrichment = st.sidebar.radio("Select Enrichment Type", ["GSEA", "ORA", "All"], index=2)
+    database = st.sidebar.radio("Select Database", ["reactome", "GO", "All"], index=2)
     return comparison, enrichment, database
 
 def pathway_filters(enrichment_df, enrichment):
-    if enrichment == "GSEA":
+    if enrichment in ("GSEA", "All"):
         nes_min = float(enrichment_df['NES'].min())
         nes_max = float(enrichment_df['NES'].max())
         nes_range = st.sidebar.slider("Normalized Enrichment Score (NES)", nes_min, nes_max, (nes_min, nes_max))
-        filtered_enrichment_df = enrichment_df[enrichment_df['NES'].between(nes_range[0], nes_range[1])]
+        gsea_rows = enrichment_df[enrichment_df['NES'].between(nes_range[0], nes_range[1])]
+        ora_rows = enrichment_df[enrichment_df['NES'].isna()]
+        filtered_enrichment_df = pd.concat([gsea_rows, ora_rows], ignore_index=True)
     else:
         filtered_enrichment_df = enrichment_df
         

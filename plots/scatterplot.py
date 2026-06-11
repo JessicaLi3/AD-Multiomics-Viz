@@ -36,7 +36,7 @@ sample_col = sampcol)
 
 comparison, enrichment, database = sidebar_selectors()
 
-comp_key, csv_ending, pathway_identifier, gene_set, protein_identifier = file_keys(comparison, enrichment, database, cell_type)
+comp_key, csv_ending = file_keys(comparison, enrichment)
 
 selection = {
     "cell_type": cell_type,
@@ -45,19 +45,26 @@ selection = {
     "database": database
 }
 
-enrichment_df = check_read_csv(f'data/enrichment/{cell_type}_proteome/{comp_key}_{enrichment}_{database}_{csv_ending}.csv')
+enrichment_df = load_enrichment_df(cell_type, comp_key, enrichment, database, selection)
+enrichment_df["Description"] = "(" + enrichment_df["Database"] + ") " + enrichment_df["Description"]
 
 filtered_enrichment_df = pathway_filters(enrichment_df, enrichment)
 
 # selecting a pathway
-enrichment_df = enrichment_df.sort_values(by = 'p.adjust')
-pathway_list = enrichment_df['Description']
+dropdown_df = filtered_enrichment_df.sort_values(by = 'p.adjust').drop_duplicates(subset='Description', keep='first')
+pathway_list = dropdown_df['Description'].unique()
 pathway_list = sorted(pathway_list)
 pathway_name = st.sidebar.selectbox("Select or Search Pathways", pathway_list)
 
+selected_db = filtered_enrichment_df[filtered_enrichment_df['Description'] == pathway_name]['Database'].iloc[0]
+if selected_db == "GO":
+    pathway_identifier, gene_set, protein_identifier = "TERM", load_GO_data(cell_type), "UNIPROT"
+elif selected_db == "reactome":
+    pathway_identifier, gene_set, protein_identifier = "clean_name", filtered_reactome_gene_sets, "gene"
+
 # Setting up pages
-id_list = pathway_to_uniprot(gene_set, database, pathway_identifier, pathway_name, protein_identifier, entry_meta)
-id_list = [p for p in id_list if p in entry_meta.index]
+clean_pathway_name = pathway_name.replace("(GO) ", "").replace("(reactome) ", "")
+id_list = pathway_to_uniprot(gene_set, selected_db, pathway_identifier, clean_pathway_name, protein_identifier, entry_meta)
 
 # subset the dataframe to the proteins of interest
 data_sub = intensity.T.loc[id_list]
@@ -94,7 +101,8 @@ with st.spinner("Loading pathway boxplots..."):
         'Description',
         'p.adjust',
         'setSize',
-        'NES']
+        'NES',
+        'enrichment_type']
     summary_table = pathway_info[[x for x in possible_summary_cols if x in pathway_info.columns]]
     st.dataframe(summary_table)
 

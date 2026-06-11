@@ -4,6 +4,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import streamlit as st
 import re
+import io
 from adjustText import adjust_text
 import textwrap as tw
 import plotly.express as px
@@ -35,7 +36,7 @@ sample_col = sampcol)
 
 comparison, enrichment, database = sidebar_selectors()
 
-comp_key, csv_ending, pathway_identifier, gene_set, protein_identifier = file_keys(comparison, enrichment, database, cell_type)
+comp_key, csv_ending = file_keys(comparison, enrichment)
 
 selection = {
     "cell_type": cell_type,
@@ -45,19 +46,29 @@ selection = {
 }
 
 diff = check_read_csv(f'data/differential_analysis/{cell_type}_proteome/{comp_key}_covDonor_genotype.csv', index_col = 0, selection=selection)
-enrichment_df = check_read_csv(f'data/enrichment/{cell_type}_proteome/{comp_key}_{enrichment}_{database}_{csv_ending}.csv', selection=selection)
 
 # sliders
-st.sidebar.header("Pathway Filters") # can we make the pathway filters into a function that goes into the utility file? So you don't have to duplicate code
+st.sidebar.header("Pathway Filters") 
 
+enrichment_df = load_enrichment_df(cell_type, comp_key, enrichment, database, selection)
+enrichment_df["Description"] = "(" + enrichment_df["Database"] + ") " + enrichment_df["Description"]
+    
 filtered_enrichment_df = pathway_filters(enrichment_df, enrichment)
     
 # selecting a pathway 
-pathway_list = filtered_enrichment_df['Description']
+dropdown_df = filtered_enrichment_df.sort_values('p.adjust').drop_duplicates(subset='Description', keep='first')
+pathway_list = dropdown_df['Description'].unique()
 pathway_list = sorted(pathway_list)
 pathway_name = st.sidebar.selectbox("Select Pathway", pathway_list)
-id_list = pathway_to_uniprot(gene_set, database, pathway_identifier, pathway_name, protein_identifier, entry_meta)
-id_list = [p for p in id_list if p in diff.index] # does this actually do anything? I thought diff and entry_meta should have the same proteins
+
+selected_db = filtered_enrichment_df[filtered_enrichment_df['Description'] == pathway_name]['Database'].iloc[0]
+if selected_db == "GO":
+    pathway_identifier, gene_set, protein_identifier = "TERM", load_GO_data(cell_type), "UNIPROT"
+elif selected_db == "reactome":
+    pathway_identifier, gene_set, protein_identifier = "clean_name", filtered_reactome_gene_sets, "gene"
+    
+clean_pathway_name = pathway_name.replace("(GO) ", "").replace("(reactome) ", "")
+id_list = pathway_to_uniprot(gene_set, selected_db, pathway_identifier, clean_pathway_name, protein_identifier, entry_meta)
 
 # adding some adjustments
 diff['id.mapped'] = diff.index.map(entry_meta['id.mapped'])
@@ -83,7 +94,8 @@ with st.spinner("Loading pathway boxplots..."):
         'Description',
         'p.adjust',
         'setSize',
-        'NES']
+        'NES',
+        'enrichment_type']
     summary_table = pathway_info[[x for x in possible_summary_cols if x in pathway_info.columns]]
     st.dataframe(summary_table)
 
@@ -159,7 +171,7 @@ elif view == "Interactive":
     fig.add_traces(base.data)
     
     top_scatter = px.scatter(
-        diff.loc[ranked_id_list], # subset the dataframe to points of interest
+        diff.loc[ranked_id_list],
         x='logFC',
         y='log_adjpval'
     )
@@ -234,6 +246,7 @@ elif view == "Interactive":
         tickcolor="black",
         tickfont=dict(color="black", size=21),
         zeroline=False)
-    
+
     st.plotly_chart(fig, use_container_width=True)
+    
 

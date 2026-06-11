@@ -4,3 +4,4 @@ matplotlib
 seaborn
 plotly
 git+https://github.com/Phlya/adjustText.git@v1.3.0
+kaleido
